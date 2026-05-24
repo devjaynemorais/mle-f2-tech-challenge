@@ -1,0 +1,19 @@
+project:
+  name: recommendation_system
+  version: "0.1.0"
+
+data:
+  raw_path: data/raw
+  interim_path: data/interim
+  processed_path: data/processed
+  external_path: data/external
+
+mlflow:
+  tracking_uri: http://localhost:5000
+  experiment_name: recommendation_system
+  artifact_location: ./mlartifacts
+
+production:
+  model_name: recommender
+  stage: Production
+  threshold: 0.5
