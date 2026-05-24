@@ -216,3 +216,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+models/artifacts/
+mlruns/
+mlartifacts/
+mlflow.db
+metrics/*.json
+!metrics/.gitkeep
+
+# DVC
+.dvc/tmp/
+.dvc/plots/
+
+# Temp extraction files
+docs/tc2_text.txt
