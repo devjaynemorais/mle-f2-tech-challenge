@@ -1,0 +1,110 @@
+"""Etapa 3 do pipeline DVC: treina o modelo e loga os resultados no MLflow.
+
+Fluxo:
+  1. Carrega os dados de data/processed/
+  2. Cria o modelo via ModelFactory (definido em params.yaml)
+  3. Treina o modelo
+  4. Loga parâmetros e métricas no MLflow
+  5. Salva o artefato do modelo em models/artifacts/
+
+TODO: implementar load_data() e save_model() após escolher o dataset.
+"""
+
+import json
+import logging
+import pickle
+from pathlib import Path
+
+import mlflow
+import yaml
+
+from config.settings import settings
+from src.models import ModelFactory
+from src.models.base import RecommenderBase
+
+logger = logging.getLogger(__name__)
+
+PARAMS_PATH = Path("params.yaml")
+PROCESSED_DIR = Path("data/processed")
+MODELS_DIR = Path("models/artifacts")
+METRICS_DIR = Path("metrics")
+
+
+def load_data() -> tuple:
+    """Carrega os dados de treino e validação de data/processed/.
+
+    TODO: implementar conforme o formato do dataset escolhido.
+    Deve retornar (X_train, y_train, X_val, y_val).
+    """
+    # TODO: carregar os splits e retornar arrays de features e rótulos
+    raise NotImplementedError("Implemente load_data() após escolher o dataset.")
+
+
+def save_model(model: RecommenderBase, run_id: str) -> Path:
+    """Salva o modelo treinado em disco.
+
+    Args:
+        model: Instância do modelo já treinado.
+        run_id: ID do run do MLflow, usado para nomear o diretório.
+
+    Returns:
+        Caminho onde o modelo foi salvo.
+    """
+    dest = MODELS_DIR / run_id
+    dest.mkdir(parents=True, exist_ok=True)
+    with open(dest / "model.pkl", "wb") as f:
+        pickle.dump(model, f)
+    logger.info("Modelo salvo em %s", dest)
+    return dest
+
+
+def run() -> None:
+    """Executa a etapa de treinamento."""
+    params = yaml.safe_load(open(PARAMS_PATH))
+    train_p = params["train"]
+    mlflow_p = params["mlflow"]
+
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    METRICS_DIR.mkdir(parents=True, exist_ok=True)
+
+    X_train, y_train, X_val, y_val = load_data()
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.set_experiment(mlflow_p["experiment_name"])
+
+    with mlflow.start_run(run_name=mlflow_p.get("run_name", train_p["model_type"])) as run:
+        # Loga todos os hiperparâmetros definidos em params.yaml
+        mlflow.log_params(train_p)
+
+        # Cria o modelo pelo nome (ex: "mlp", "logistic", "dummy")
+        model = ModelFactory.create(
+            train_p["model_type"],
+            input_dim=X_train.shape[1],
+            epochs=train_p["epochs"],
+            batch_size=train_p["batch_size"],
+            lr=train_p["learning_rate"],
+            patience=train_p["early_stopping_patience"],
+            random_state=train_p["random_state"],
+        )
+
+        logger.info("Treinando modelo: %s", train_p["model_type"])
+        model.fit(X_train, y_train)
+
+        # TODO: calcular métricas de validação e logar no MLflow
+        # Exemplo:
+        # val_proba = model.predict_proba(X_val)
+        # metrics = compute_metrics(y_val, val_proba)
+        # mlflow.log_metrics(metrics)
+
+        artifact_dir = save_model(model, run.info.run_id)
+        mlflow.log_artifact(str(artifact_dir))
+
+        # TODO: salvar métricas em metrics/train_metrics.json para o DVC rastrear
+        # json.dump(metrics, open(METRICS_DIR / "train_metrics.json", "w"), indent=2)
+
+        logger.info("Run MLflow: %s", run.info.run_id)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    run()
