@@ -1,0 +1,21 @@
+preprocess:
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42
+  # TODO: adicionar parâmetros específicos do dataset escolhido
+
+feature_eng:
+  random_state: 42
+  # TODO: definir parâmetros de feature engineering após escolher o dataset
+
+train:
+  model_type: mlp        # opções: mlp | logistic | dummy
+  epochs: 50
+  batch_size: 256
+  learning_rate: 0.001
+  early_stopping_patience: 5
+  random_state: 42
+
+mlflow:
+  experiment_name: recommendation_system
+  run_name: baseline

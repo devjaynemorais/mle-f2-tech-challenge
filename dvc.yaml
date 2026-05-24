@@ -1,0 +1,49 @@
+stages:
+  preprocess:
+    cmd: python -m src.data.preprocess
+    deps:
+      - src/data/preprocess.py
+      - data/raw/
+    params:
+      - preprocess
+    outs:
+      - data/interim/
+
+  feature_eng:
+    cmd: python -m src.features.build_features
+    deps:
+      - src/features/build_features.py
+      - data/interim/
+    params:
+      - feature_eng
+    outs:
+      - data/processed/
+
+  train:
+    cmd: python -m src.training.trainer
+    deps:
+      - src/training/trainer.py
+      - src/models/
+      - data/processed/
+    params:
+      - train
+    outs:
+      - models/artifacts/
+    metrics:
+      - metrics/train_metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: python -m src.evaluation.evaluate
+    deps:
+      - src/evaluation/evaluate.py
+      - models/artifacts/
+      - data/processed/
+    params:
+      - train
+    metrics:
+      - metrics/eval_metrics.json:
+          cache: false
+    plots:
+      - metrics/plots/:
+          cache: false
