@@ -1,0 +1,63 @@
+services:
+  mlflow:
+    image: python:3.11-slim
+    command: >
+      bash -c "pip install mlflow --quiet && mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:///mlflow.db
+        --default-artifact-root /mlartifacts"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+      - ./mlartifacts:/mlartifacts
+      - mlflow-db:/
+    networks:
+      - ml-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  train:
+    build:
+      context: .
+      target: runtime
+    command: src.training.trainer
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./metrics:/app/metrics
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+  evaluate:
+    build:
+      context: .
+      target: runtime
+    command: src.evaluation.evaluate
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./metrics:/app/metrics
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    networks:
+      - ml-network
+    profiles:
+      - eval
+
+volumes:
+  mlflow-db:
+
+networks:
+  ml-network:
+    driver: bridge
