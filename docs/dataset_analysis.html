@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análise de Datasets — TC2 MLE FIAP</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3250;
+      --accent: #6c63ff;
+      --accent2: #00d4ff;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --gold: #fbbf24;
+      --silver: #cbd5e1;
+      --bronze: #c47b3a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      padding: 2rem 1rem 5rem;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 3.5rem 2rem 2.5rem;
+      background: linear-gradient(135deg, #1a1d27 0%, #16213e 50%, #1a1d27 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-bottom: 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: -60px;
+      width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(108,99,255,0.15) 0%, transparent 70%);
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: -60px;
+      width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%);
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(108,99,255,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 99px;
+      padding: .3rem 1rem;
+      font-size: .8rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      background: linear-gradient(90deg, #e2e8f0 30%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: .6rem;
+    }
+    .hero p { color: var(--muted); max-width: 600px; margin: 0 auto; }
+
+    /* ── Section titles ── */
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1.2rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    h2 .icon { font-size: 1.2rem; }
+    h3 { font-size: 1.05rem; font-weight: 600; color: var(--accent2); margin-bottom: .8rem; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+    .dataset-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .dataset-name a {
+      color: var(--accent2);
+      text-decoration: none;
+      font-size: .85rem;
+      font-weight: 400;
+      margin-left: .6rem;
+    }
+    .dataset-name a:hover { text-decoration: underline; }
+    .badge-group { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .badge {
+      padding: .25rem .75rem;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .badge-green { background: rgba(34,197,94,.1); color: var(--green); border-color: rgba(34,197,94,.25); }
+    .badge-yellow { background: rgba(245,158,11,.1); color: var(--yellow); border-color: rgba(245,158,11,.25); }
+    .badge-red { background: rgba(239,68,68,.1); color: var(--red); border-color: rgba(239,68,68,.25); }
+    .badge-purple { background: rgba(108,99,255,.12); color: #a89fff; border-color: rgba(108,99,255,.3); }
+    .badge-blue { background: rgba(0,212,255,.08); color: var(--accent2); border-color: rgba(0,212,255,.2); }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: .75rem;
+      margin-bottom: 1.2rem;
+    }
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .75rem;
+      text-align: center;
+    }
+    .stat-box .val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent2);
+      display: block;
+    }
+    .stat-box .lbl {
+      font-size: .72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; margin-bottom: 1.2rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    th {
+      background: var(--surface2);
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: .72rem;
+      letter-spacing: .06em;
+      padding: .6rem .9rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: .55rem .9rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: .82rem; color: #a89fff; }
+
+    /* ── Pros/Cons ── */
+    .pc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    @media (max-width: 600px) { .pc-grid { grid-template-columns: 1fr; } }
+    .pc-box { background: var(--surface2); border-radius: 8px; padding: 1rem; }
+    .pc-box h4 { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .6rem; }
+    .pc-box.pros h4 { color: var(--green); }
+    .pc-box.cons h4 { color: var(--red); }
+    .pc-box ul { list-style: none; }
+    .pc-box ul li { padding: .3rem 0; font-size: .88rem; color: var(--muted); display: flex; gap: .5rem; }
+    .pc-box ul li::before { flex-shrink: 0; }
+    .pc-box.pros ul li::before { content: '✓'; color: var(--green); }
+    .pc-box.cons ul li::before { content: '✗'; color: var(--red); }
+
+    /* ── Criterion Matrix ── */
+    .matrix-section { margin-bottom: 3rem; }
+    .icon-ok   { color: var(--green); font-weight: 700; }
+    .icon-warn { color: var(--yellow); font-weight: 700; }
+    .icon-fail { color: var(--red); font-weight: 700; }
+    .criterion-note { font-size: .78rem; color: var(--muted); display: block; margin-top: .15rem; }
+
+    /* ── Ranking ── */
+    .ranking { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 3rem; }
+    .rank-card {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+    }
+    .rank-card.rank-1 { border-color: rgba(251,191,36,.35); background: linear-gradient(135deg, #1a1d27, #1e1a10); }
+    .rank-card.rank-2 { border-color: rgba(203,213,225,.2); background: linear-gradient(135deg, #1a1d27, #15191f); }
+    .rank-card.rank-3 { border-color: rgba(196,123,58,.2); background: linear-gradient(135deg, #1a1d27, #1a1510); }
+    .rank-medal { font-size: 2.2rem; flex-shrink: 0; }
+    .rank-info { flex: 1; }
+    .rank-title { font-size: 1.1rem; font-weight: 700; }
+    .rank-card.rank-1 .rank-title { color: var(--gold); }
+    .rank-card.rank-2 .rank-title { color: var(--silver); }
+    .rank-card.rank-3 .rank-title { color: var(--bronze); }
+    .rank-reason { font-size: .88rem; color: var(--muted); margin-top: .3rem; }
+    .rank-score {
+      font-size: 1.5rem;
+      font-weight: 800;
+      flex-shrink: 0;
+      color: var(--muted);
+    }
+    .rank-card.rank-1 .rank-score { color: var(--gold); }
+    .rank-card.rank-2 .rank-score { color: var(--silver); }
+    .rank-card.rank-3 .rank-score { color: var(--bronze); }
+
+    /* ── Risk alerts ── */
+    .alert {
+      border-radius: 8px;
+      padding: .9rem 1.1rem;
+      margin: .75rem 0;
+      font-size: .88rem;
+      display: flex;
+      gap: .7rem;
+      align-items: flex-start;
+    }
+    .alert-icon { font-size: 1rem; flex-shrink: 0; margin-top: .1rem; }
+    .alert-red    { background: rgba(239,68,68,.08);   border: 1px solid rgba(239,68,68,.2);   color: #fca5a5; }
+    .alert-yellow { background: rgba(245,158,11,.08);  border: 1px solid rgba(245,158,11,.2);  color: #fcd34d; }
+    .alert-green  { background: rgba(34,197,94,.08);   border: 1px solid rgba(34,197,94,.2);   color: #86efac; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .8rem;
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .section { margin-bottom: 3rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+    /* ── Dataset description ── */
+    .description-box {
+      background: var(--surface2);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1.4rem;
+      font-size: .9rem;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .description-box p { margin: 0; }
+    .description-box strong { color: var(--text); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">Tech Challenge 2 · FIAP MLE Fase 2</div>
+    <h1>Avaliação de Datasets para Recomendação</h1>
+    <p>Análise comparativa com base nos critérios de avaliação do TC2 — pesos, riscos e ranking final.</p>
+  </div>
+
+  <!-- Critérios de Avaliação -->
+  <div class="section">
+    <h2><span class="icon">📋</span> Critérios de Avaliação do TC2</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Critério</th>
+            <th>Peso</th>
+            <th>O que é avaliado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Clean code e estrutura</td><td><span class="badge badge-purple">15%</span></td><td>SOLID, naming, type hints, design patterns, funções ≤ 20 linhas</td></tr>
+          <tr><td>Reprodutibilidade</td><td><span class="badge badge-purple">15%</span></td><td>uv, lock file, .env, <span class="mono">dvc repro</span> em clone limpo</td></tr>
+          <tr><td>Docker</td><td><span class="badge badge-purple">15%</span></td><td>Multi-stage, imagem otimizada, compose funcional</td></tr>
+          <tr><td>DVC + Pipeline</td><td><span class="badge badge-purple">15%</span></td><td>≥ 3 stages, <span class="mono">dvc repro</span> funcional end-to-end</td></tr>
+          <tr><td>Rede Neural (PyTorch)</td><td><span class="badge badge-purple">15%</span></td><td>MLP funcional, early stopping, comparação com baselines com ≥ 4 métricas</td></tr>
+          <tr><td>MLflow + Registry</td><td><span class="badge badge-blue">10%</span></td><td>≥ 3 runs rastreados, modelo promovido a Production</td></tr>
+          <tr><td>Vídeo STAR</td><td><span class="badge badge-blue">10%</span></td><td>Clareza, cobertura dos 4 elementos, ≤ 5 min</td></tr>
+          <tr><td>Bônus: deploy em nuvem</td><td><span class="badge badge-green">5%</span></td><td>Container acessível via URL pública (AWS, Azure ou GCP)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Dataset 1: RetailRocket -->
+  <div class="section">
+    <h2><span class="icon">🛒</span> Dataset 1 — RetailRocket E-commerce</h2>
+    <div class="card">
+      <div class="card-header">
+        <div class="dataset-name">
+          RetailRocket
+          <a href="https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset" target="_blank">↗ Kaggle</a>
+        </div>
+        <div class="badge-group">
+          <span class="badge badge-green">E-commerce real</span>
+          <span class="badge badge-blue">Research use</span>
+          <span class="badge badge-purple">~200 MB</span>
+        </div>
+      </div>
+
+      <div class="description-box">
+        <p>
+          Dataset publicado pela empresa RetailRocket, coletado de um e-commerce europeu real ao longo de 4,5 meses (maio a setembro de 2015).
+          Contém o registro de comportamento de navegação de visitantes anônimos: visualizações de produto, adições ao carrinho e compras efetivadas.
+          Todos os identificadores estão anonimizados (hashed) por questões de confidencialidade — não há nomes de produto ou categorias legíveis.
+          O dataset é amplamente usado em pesquisas de recomendação por refletir com fidelidade o comportamento de compra implícito em um cenário real de e-commerce.
+        </p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box"><span class="val">1.407.580</span><span class="lbl">Visitantes</span></div>
+        <div class="stat-box"><span class="val">235.061</span><span class="lbl">Itens únicos</span></div>
+        <div class="stat-box"><span class="val">2.756.101</span><span class="lbl">Eventos totais</span></div>
+        <div class="stat-box"><span class="val">2.664.312</span><span class="lbl">Views</span></div>
+        <div class="stat-box"><span class="val">69.332</span><span class="lbl">Add to cart</span></div>
+        <div class="stat-box"><span class="val">22.457</span><span class="lbl">Transações</span></div>
+        <div class="stat-box"><span class="val">4,5 meses</span><span class="lbl">Período</span></div>
+        <div class="stat-box"><span class="val">~200 MB</span><span class="lbl">Tamanho</span></div>
+      </div>
+
+      <h3>Estrutura de Arquivos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Arquivo</th><th>Linhas</th><th>Colunas</th><th>Descrição</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="mono">events.csv</span></td><td>2.756.101</td><td>5</td><td>timestamp, visitorid, event, itemid, transactionid</td></tr>
+            <tr><td><span class="mono">item_properties_part1.csv</span></td><td>~5.800.000</td><td>4</td><td>timestamp, itemid, property, value (hashed)</td></tr>
+            <tr><td><span class="mono">item_properties_part2.csv</span></td><td>~4.700.000</td><td>4</td><td>continuação das propriedades</td></tr>
+            <tr><td><span class="mono">category_tree.csv</span></td><td>1.669</td><td>2</td><td>categoryid, parentid</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mapeamento para o Pipeline DVC</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Stage</th><th>O que fazer</th><th>Complexidade</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">preprocess</span></td><td>Filtrar eventos por tipo, remover visitantes com poucas interações</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">feature_eng</span></td><td>Criar features de intensidade: view=1, addtocart=2, transaction=3</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">train</span></td><td>MLP binário (interagiu / não interagiu), binarização direta</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">evaluate</span></td><td>ROC-AUC, AP, F1, Precision, Recall</td><td><span class="badge badge-green">Baixa</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pc-grid">
+        <div class="pc-box pros">
+          <h4>✓ Pontos Fortes</h4>
+          <ul>
+            <li>E-commerce real — aderência total ao enunciado</li>
+            <li>3 tipos de evento = features naturais para o MLP</li>
+            <li>~200 MB — cabe em qualquer máquina, dvc repro seguro</li>
+            <li>Licença research — permite deploy em nuvem (bônus 5%)</li>
+            <li>Pipeline DVC simples e limpo em cada stage</li>
+            <li>Volume adequado para MLP superar baselines</li>
+          </ul>
+        </div>
+        <div class="pc-box cons">
+          <h4>✗ Pontos Fracos</h4>
+          <ul>
+            <li>Todos os valores são hashed — sem nomes de produto legíveis</li>
+            <li>Dificulta exemplos concretos no vídeo STAR</li>
+            <li>item_properties dividida em 2 arquivos grandes</li>
+            <li>Visitantes anônimos — difícil identificar usuários recorrentes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dataset 2: Instacart -->
+  <div class="section">
+    <h2><span class="icon">🧺</span> Dataset 2 — Instacart Market Basket</h2>
+    <div class="card">
+      <div class="card-header">
+        <div class="dataset-name">
+          Instacart Market Basket Analysis
+          <a href="https://www.kaggle.com/datasets/psparks/instacart-market-basket-analysis" target="_blank">↗ Kaggle</a>
+        </div>
+        <div class="badge-group">
+          <span class="badge badge-green">E-commerce real</span>
+          <span class="badge badge-red">Non-commercial</span>
+          <span class="badge badge-yellow">~1,2 GB</span>
+        </div>
+      </div>
+
+      <div class="description-box">
+        <p>
+          Dataset lançado pela Instacart em 2017 como parte de uma competição Kaggle.
+          Contém o histórico anonimizado de compras de mais de 200 mil usuários em um serviço de delivery de supermercado nos Estados Unidos.
+          Cada registro representa um produto dentro de um pedido, com informações de sequência no carrinho, flag de reordenação, dia da semana e hora do pedido.
+          Os produtos têm nomes reais e estão organizados em corredores (aisles) e departamentos — o que torna a análise exploratória muito rica e a narrativa do vídeo STAR concreta.
+          A tarefa original da competição era prever quais produtos o usuário reordenaria no próximo pedido.
+        </p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box"><span class="val">206.209</span><span class="lbl">Usuários</span></div>
+        <div class="stat-box"><span class="val">49.688</span><span class="lbl">Produtos</span></div>
+        <div class="stat-box"><span class="val">3.421.083</span><span class="lbl">Pedidos</span></div>
+        <div class="stat-box"><span class="val">32.434.489</span><span class="lbl">Linhas (prior)</span></div>
+        <div class="stat-box"><span class="val">134</span><span class="lbl">Corredores</span></div>
+        <div class="stat-box"><span class="val">21</span><span class="lbl">Departamentos</span></div>
+        <div class="stat-box"><span class="val">6</span><span class="lbl">Arquivos CSV</span></div>
+        <div class="stat-box"><span class="val">~1,2 GB</span><span class="lbl">Tamanho</span></div>
+      </div>
+
+      <h3>Estrutura de Arquivos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Arquivo</th><th>Linhas</th><th>Colunas</th><th>Descrição</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="mono">orders.csv</span></td><td>3.421.083</td><td>7</td><td>order_id, user_id, eval_set, order_number, order_dow, order_hour_of_day, days_since_prior</td></tr>
+            <tr><td><span class="mono">order_products__prior.csv</span></td><td>32.434.489</td><td>4</td><td>order_id, product_id, add_to_cart_order, reordered</td></tr>
+            <tr><td><span class="mono">order_products__train.csv</span></td><td>~1.384.617</td><td>4</td><td>mesmo esquema do prior (pedido-alvo)</td></tr>
+            <tr><td><span class="mono">products.csv</span></td><td>49.688</td><td>4</td><td>product_id, product_name, aisle_id, department_id</td></tr>
+            <tr><td><span class="mono">aisles.csv</span></td><td>134</td><td>2</td><td>aisle_id, aisle</td></tr>
+            <tr><td><span class="mono">departments.csv</span></td><td>21</td><td>2</td><td>department_id, department</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mapeamento para o Pipeline DVC</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Stage</th><th>O que fazer</th><th>Complexidade</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">preprocess</span></td><td>Join entre 6 tabelas, filtrar usuários com poucas ordens</td><td><span class="badge badge-red">Alta</span></td></tr>
+            <tr><td><span class="mono">feature_eng</span></td><td>Criar histórico de compra, features de reordenação, features temporais</td><td><span class="badge badge-red">Alta</span></td></tr>
+            <tr><td><span class="mono">train</span></td><td>MLP binário após features prontas</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">evaluate</span></td><td>ROC-AUC, AP, F1, Precision, Recall</td><td><span class="badge badge-green">Baixa</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-red">
+        <span class="alert-icon">🚫</span>
+        <div><strong>Licença Non-Commercial:</strong> O dataset da competição Kaggle não permite uso comercial. Isso <strong>elimina automaticamente o bônus de deploy em nuvem (5%)</strong> — qualquer URL pública configurada para fins de demonstração viola os termos de uso.</div>
+      </div>
+
+      <div class="alert alert-yellow">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>Risco de RAM:</strong> O arquivo <span class="mono">order_products__prior.csv</span> tem 32 milhões de linhas. Em máquinas com menos de 16 GB de RAM, o stage de <span class="mono">feature_eng</span> pode falhar durante o <span class="mono">dvc repro</span> — comprometendo o critério de reprodutibilidade (15%).</div>
+      </div>
+
+      <div class="pc-grid">
+        <div class="pc-box pros">
+          <h4>✓ Pontos Fortes</h4>
+          <ul>
+            <li>Produtos com nomes reais — narrativa rica no vídeo STAR</li>
+            <li>Features temporais ricas (hora, dia da semana, intervalo)</li>
+            <li>Flag reordered = tarefa binária natural</li>
+            <li>Boa escala para demonstrar ganho do MLP</li>
+          </ul>
+        </div>
+        <div class="pc-box cons">
+          <h4>✗ Pontos Fracos</h4>
+          <ul>
+            <li>6 tabelas com joins complexos — dificulta clean code</li>
+            <li>1,2 GB — risco real de falha de RAM</li>
+            <li>Licença non-commercial = sem bônus de deploy (−5%)</li>
+            <li>Stage feature_eng muito pesado para funções ≤ 20 linhas</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dataset 3: MovieLens -->
+  <div class="section">
+    <h2><span class="icon">🎬</span> Dataset 3 — MovieLens (ml-latest-small)</h2>
+    <div class="card">
+      <div class="card-header">
+        <div class="dataset-name">
+          MovieLens Dataset
+          <a href="https://www.kaggle.com/datasets/ayushimishra2809/movielens-dataset" target="_blank">↗ Kaggle</a>
+        </div>
+        <div class="badge-group">
+          <span class="badge badge-yellow">Filmes (não e-commerce)</span>
+          <span class="badge badge-green">Educacional</span>
+          <span class="badge badge-green">~3 MB</span>
+        </div>
+      </div>
+
+      <div class="description-box">
+        <p>
+          O MovieLens é um dos benchmarks mais clássicos e documentados para sistemas de recomendação, mantido pelo GroupLens Research da Universidade de Minnesota desde 1997.
+          Esta versão específica no Kaggle corresponde ao <strong>ml-latest-small</strong>: uma amostra compacta com 610 usuários e ~100 mil avaliações coletadas entre 1996 e 2018.
+          Cada usuário avaliou no mínimo 20 filmes em uma escala de 0,5 a 5 estrelas.
+          O dataset é amplamente utilizado em tutoriais e cursos por sua simplicidade e limpeza, mas a escala reduzida limita sua utilidade para demonstrar o poder de redes neurais sobre baselines.
+          Diferente dos outros dois, usa <strong>feedback explícito</strong> (nota do usuário) em vez de comportamento implícito de navegação.
+        </p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box"><span class="val">610</span><span class="lbl">Usuários</span></div>
+        <div class="stat-box"><span class="val">9.742</span><span class="lbl">Filmes</span></div>
+        <div class="stat-box"><span class="val">100.836</span><span class="lbl">Ratings</span></div>
+        <div class="stat-box"><span class="val">3.683</span><span class="lbl">Tags</span></div>
+        <div class="stat-box"><span class="val">0,5–5,0</span><span class="lbl">Escala de nota</span></div>
+        <div class="stat-box"><span class="val">22 anos</span><span class="lbl">Período (1996–2018)</span></div>
+        <div class="stat-box"><span class="val">4</span><span class="lbl">Arquivos CSV</span></div>
+        <div class="stat-box"><span class="val">~3 MB</span><span class="lbl">Tamanho</span></div>
+      </div>
+
+      <h3>Estrutura de Arquivos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Arquivo</th><th>Linhas</th><th>Colunas</th><th>Descrição</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="mono">ratings.csv</span></td><td>100.836</td><td>4</td><td>userId, movieId, rating (0.5–5.0), timestamp</td></tr>
+            <tr><td><span class="mono">movies.csv</span></td><td>9.742</td><td>3</td><td>movieId, title (com ano), genres (pipe-separated)</td></tr>
+            <tr><td><span class="mono">tags.csv</span></td><td>3.683</td><td>4</td><td>userId, movieId, tag, timestamp</td></tr>
+            <tr><td><span class="mono">links.csv</span></td><td>9.742</td><td>3</td><td>movieId, imdbId, tmdbId</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mapeamento para o Pipeline DVC</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Stage</th><th>O que fazer</th><th>Complexidade</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">preprocess</span></td><td>Filtrar usuários com menos de 20 ratings</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">feature_eng</span></td><td>Binarizar ratings (≥ 3.5 = positivo), encodar gêneros</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">train</span></td><td>MLP binário</td><td><span class="badge badge-green">Baixa</span></td></tr>
+            <tr><td><span class="mono">evaluate</span></td><td>ROC-AUC, AP, F1, Precision, Recall</td><td><span class="badge badge-green">Baixa</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-red">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>610 usuários é insuficiente para o MLP:</strong> Com apenas 610 usuários, o modelo provavelmente não vai mostrar ganho real sobre a regressão logística baseline — enfraquecendo diretamente o critério de <strong>15% da rede neural PyTorch</strong>. Um MLP precisa de volume para aprender representações úteis.</div>
+      </div>
+
+      <div class="alert alert-yellow">
+        <span class="alert-icon">🎬</span>
+        <div><strong>Não é e-commerce:</strong> O enunciado do TC2 define explicitamente "sistema de recomendação de produtos baseado no comportamento de navegação dos usuários". Filmes são aceitos pela letra, mas enfraquecem o "Situation" do vídeo STAR e a coerência com o problema de negócio.</div>
+      </div>
+
+      <div class="pc-grid">
+        <div class="pc-box pros">
+          <h4>✓ Pontos Fortes</h4>
+          <ul>
+            <li>Dataset mais documentado do mundo para recomendação</li>
+            <li>4 arquivos limpos — pipeline mais simples possível</li>
+            <li>3 MB — reprodutibilidade garantida em qualquer máquina</li>
+            <li>Gêneros legíveis — EDA narrativa e clara</li>
+            <li>Licença educacional — deploy em nuvem permitido</li>
+          </ul>
+        </div>
+        <div class="pc-box cons">
+          <h4>✗ Pontos Fracos</h4>
+          <ul>
+            <li>610 usuários — MLP dificilmente supera baselines</li>
+            <li>Não é e-commerce (domínio diferente do enunciado)</li>
+            <li>Feedback explícito (nota) ≠ comportamento de navegação</li>
+            <li>Escala trivial — não demonstra capacidade de produtização</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Matriz de Critérios -->
+  <div class="matrix-section">
+    <h2><span class="icon">⚖️</span> Matriz de Critérios × Datasets</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Critério</th>
+            <th>Peso</th>
+            <th>RetailRocket</th>
+            <th>Instacart</th>
+            <th>MovieLens</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Clean code</td>
+            <td><span class="badge badge-purple">15%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Pipeline simples, funções curtas</span></td>
+            <td><span class="icon-warn">⚠</span><span class="criterion-note">6 joins dificultam funções ≤ 20 linhas</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Estrutura mínima</span></td>
+          </tr>
+          <tr>
+            <td>Reprodutibilidade</td>
+            <td><span class="badge badge-purple">15%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">200 MB, dvc repro seguro</span></td>
+            <td><span class="icon-warn">⚠</span><span class="criterion-note">32M linhas, risco de falha de RAM</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">3 MB, sempre reprodutível</span></td>
+          </tr>
+          <tr>
+            <td>Docker</td>
+            <td><span class="badge badge-purple">15%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+          </tr>
+          <tr>
+            <td>DVC + Pipeline</td>
+            <td><span class="badge badge-purple">15%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Stages claros e leves</span></td>
+            <td><span class="icon-warn">⚠</span><span class="criterion-note">feature_eng muito pesado</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Stages triviais</span></td>
+          </tr>
+          <tr>
+            <td>Rede Neural PyTorch</td>
+            <td><span class="badge badge-purple">15%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Volume suficiente para MLP superar baselines</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Bom volume e features ricas</span></td>
+            <td><span class="icon-fail">✗</span><span class="criterion-note">610 usuários — MLP provavelmente não supera baselines</span></td>
+          </tr>
+          <tr>
+            <td>MLflow + Registry</td>
+            <td><span class="badge badge-blue">10%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Independe do dataset</span></td>
+          </tr>
+          <tr>
+            <td>Vídeo STAR</td>
+            <td><span class="badge badge-blue">10%</span></td>
+            <td><span class="icon-warn">⚠</span><span class="criterion-note">Dados hashed — narrativa abstrata</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Nomes de produto reais — narrativa concreta</span></td>
+            <td><span class="icon-warn">⚠</span><span class="criterion-note">Não é e-commerce — contexto fraco</span></td>
+          </tr>
+          <tr>
+            <td>Bônus deploy em nuvem</td>
+            <td><span class="badge badge-green">5%</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Research use — deploy permitido</span></td>
+            <td><span class="icon-fail">✗</span><span class="criterion-note">Non-commercial — deploy proibido</span></td>
+            <td><span class="icon-ok">✓</span><span class="criterion-note">Educacional — deploy permitido</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Ranking Final -->
+  <div class="section">
+    <h2><span class="icon">🏆</span> Ranking Final</h2>
+    <div class="ranking">
+
+      <div class="rank-card rank-1">
+        <div class="rank-medal">🥇</div>
+        <div class="rank-info">
+          <div class="rank-title">RetailRocket E-commerce Dataset</div>
+          <div class="rank-reason">
+            Melhor fit técnico com os critérios do TC2. Pipeline DVC simples e limpo, ~200 MB garante
+            <strong>dvc repro</strong> funcional em qualquer máquina, volume adequado para o MLP superar
+            baselines, licença permite o bônus de deploy em nuvem.
+            Única fraqueza real é o vídeo STAR com dados hashed — contornável
+            focando nos tipos de evento e nas métricas de negócio.
+          </div>
+        </div>
+        <div class="rank-score">8,5</div>
+      </div>
+
+      <div class="rank-card rank-2">
+        <div class="rank-medal">🥈</div>
+        <div class="rank-info">
+          <div class="rank-title">Instacart Market Basket Analysis</div>
+          <div class="rank-reason">
+            Melhor narrativa para o vídeo STAR — produtos com nomes reais e contexto de supermercado.
+            Porém três riscos sérios: (1) arquivo de 32M linhas pode travar o <strong>dvc repro</strong>
+            em máquinas com menos de 16 GB RAM, afetando o critério de reprodutibilidade de 15%;
+            (2) a licença non-commercial elimina os 5% de bônus de deploy;
+            (3) os joins complexos entre 6 tabelas dificultam o critério de clean code.
+          </div>
+        </div>
+        <div class="rank-score">7,0</div>
+      </div>
+
+      <div class="rank-card rank-3">
+        <div class="rank-medal">🥉</div>
+        <div class="rank-info">
+          <div class="rank-title">MovieLens (ml-latest-small)</div>
+          <div class="rank-reason">
+            Tecnicamente o mais fácil de implementar, mas 610 usuários é insuficiente para
+            demonstrar que o MLP supera os baselines sklearn — comprometendo o critério de 15%
+            mais importante para mostrar competência em deep learning.
+            Além disso, não é e-commerce, o que enfraquece a coerência com o problema de negócio
+            descrito no enunciado.
+          </div>
+        </div>
+        <div class="rank-score">5,0</div>
+      </div>
+
+    </div>
+
+    <div class="alert alert-green">
+      <span class="alert-icon">💡</span>
+      <div>
+        <strong>Recomendação final:</strong> Use o <strong>RetailRocket</strong>.
+        Os dados hashed são uma desvantagem estética, mas não técnica — o pipeline DVC,
+        o MLP e a comparação com baselines funcionam perfeitamente.
+        Para o vídeo STAR, foque nos <em>tipos de evento</em> como proxy de intenção do usuário
+        (view → addtocart → transaction) em vez de nomes de produto.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Gerado para o Tech Challenge 2 · FIAP MLE Fase 2 · 2025
+  </div>
+
+</div>
+</body>
+</html>
