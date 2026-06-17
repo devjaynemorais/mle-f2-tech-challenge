@@ -3,7 +3,7 @@ name = "mle-f2-tech-challenge"
 version = "0.1.0"
 description = "E-commerce product recommendation system — FIAP MLE Phase 2"
 readme = "README.md"
-packages = [{include = "src"}]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -24,6 +24,7 @@ pytest = ">=8.1.0"
 pytest-cov = ">=5.0.0"
 ruff = ">=0.4.0"
 mypy = ">=1.10.0"
+kaggle = ">=1.6.0"
 pre-commit = ">=3.7.0"
 ipykernel = ">=6.29.0"
 jupyterlab = ">=4.1.0"
