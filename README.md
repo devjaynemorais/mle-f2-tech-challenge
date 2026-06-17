@@ -51,30 +51,24 @@ mle-f2-tech-challenge/
 
 ## Início Rápido
 
-```bash
-# 1. Instalar dependências
-poetry install
+**Pré-requisitos:** Python 3.11, Make, Docker
 
-# 2. Copiar e configurar o ambiente
+```bash
+# 1. Criar ambiente virtual e instalar dependências
+make env
+
+# 2. Copiar e configurar variáveis de ambiente
 cp .env.example .env
 
-# 3. Validar o ambiente
-make validate-env
+# 3. Obter os dados (DVC remote ou Kaggle API)
+dvc pull
+# ou: python scripts/download_dataset.py
 
-# 4. Colocar o dataset em data/raw/ e rodar o pipeline completo
-make dvc-repro
+# 4. Rodar pipeline completo (validate-env + dvc repro)
+make setup
 
 # 5. Iniciar a UI do MLflow
 make mlflow
-```
-
-### Windows (sem make)
-
-```powershell
-python tasks.py env
-python tasks.py validate-env
-python tasks.py dvc-repro
-python tasks.py mlflow
 ```
 
 ## Pipeline DVC
@@ -98,23 +92,29 @@ Ou reproduzir o pipeline completo:
 dvc repro
 ```
 
-## Docker
+## Servir a API
+
+**Opção A — local** (usa código e modelo do host diretamente):
 
 ```bash
-# Build e iniciar MLflow + serviço de treino
-make docker-up
+make api
+```
 
-# Parar todos os serviços
-make docker-down
+**Opção B — Docker** (requer rebuild para incorporar modelo e código atualizados):
+
+```bash
+make compose-build   # builda as imagens
+make compose-full    # sobe MLflow + treino + API
+make compose-down    # para todos os serviços
 ```
 
 ## Desenvolvimento
 
 ```bash
-make lint       # ruff check + verificação de formatação
-make format     # corrigir problemas de lint automaticamente
-make test       # pytest
-make test-cov   # pytest com relatório de cobertura em HTML
+make lint        # ruff check + verificação de formatação
+make format      # corrigir problemas de lint automaticamente
+make test        # pytest
+make test-cov    # pytest com relatório de cobertura em HTML
 ```
 
 ## Dataset
@@ -133,8 +133,8 @@ Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
 
 ## Design Patterns
 
-- **Factory** (`src/models/base.py`): `ModelFactory.create("mlp")` instancia qualquer recomendador registrado.
-- **Strategy** (`src/data/preprocess.py`): subclasses de `PreprocessStrategy` trocam a lógica de pré-processamento sem alterar o pipeline.
+- **Factory** (`src/models/factory.py`): `ModelFactory.create("mlp")` instancia qualquer recomendador registrado via decorator `@ModelFactory.register`.
+- **Strategy** (`src/data/preprocessor.py`): subclasses de `PreprocessStrategy` (ex: `RetailRocketPreprocessor`) trocam a lógica de pré-processamento sem alterar o pipeline.
 
 ## Critérios de Avaliação
 
