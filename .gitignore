@@ -221,7 +221,6 @@ __marimo__/
 data/raw/*
 data/interim/*
 data/processed/*
-!data/**/.gitkeep
 models/artifacts/
 mlruns/
 mlartifacts/
@@ -232,6 +231,7 @@ metrics/*.json
 # DVC
 .dvc/tmp/
 .dvc/plots/
+dvc-storage/
 
 # Temp extraction files
 docs/tc2_text.txt
