@@ -22,7 +22,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from config.settings import settings
+from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

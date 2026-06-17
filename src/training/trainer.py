@@ -18,7 +18,7 @@ from pathlib import Path
 import mlflow
 import yaml
 
-from config.settings import settings
+from src.config.settings import settings
 from src.models import ModelFactory
 from src.models.base import RecommenderBase
 
