@@ -85,29 +85,26 @@ def compute_metrics(
     }
 
 
-def run() -> None:
-    """Executa a etapa de avaliação."""
-    params = yaml.safe_load(open(PARAMS_PATH))
-    mlflow_p = params["mlflow"]
-
+def _log_and_save(metrics: dict, mlflow_p: dict) -> None:
+    """Loga métricas no MLflow e persiste o JSON para o DVC rastrear."""
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
-
-    model = load_model()
-    X_test, y_test = load_test_data()
-    y_proba = model.predict_proba(X_test)
-
-    metrics = compute_metrics(y_test, y_proba)
-    logger.info("Métricas de teste: %s", metrics)
-
-    # Loga no MLflow
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(mlflow_p["experiment_name"])
     with mlflow.start_run(run_name="evaluate"):
         mlflow.log_metrics(metrics)
+    out = METRICS_DIR / "eval_metrics.json"
+    json.dump(metrics, open(out, "w"), indent=2)
+    logger.info("Métricas salvas em %s", out)
 
-    # Salva em JSON para o DVC rastrear como métrica
-    json.dump(metrics, open(METRICS_DIR / "eval_metrics.json", "w"), indent=2)
-    logger.info("Métricas salvas em %s", METRICS_DIR / "eval_metrics.json")
+
+def run() -> None:
+    """Executa a etapa de avaliação."""
+    params = yaml.safe_load(open(PARAMS_PATH))
+    model = load_model()
+    X_test, y_test = load_test_data()
+    metrics = compute_metrics(y_test, model.predict_proba(X_test))
+    logger.info("Métricas de teste: %s", metrics)
+    _log_and_save(metrics, params["mlflow"])
 
 
 if __name__ == "__main__":

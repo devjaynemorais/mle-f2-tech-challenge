@@ -62,43 +62,36 @@ def split_data(
     return train, val, test
 
 
-def run() -> None:
-    """Executa a etapa de feature engineering.
-
-    Lê os dados de data/interim/, gera as features e salva
-    os splits train/val/test em data/processed/.
-    """
-    params = yaml.safe_load(open(PARAMS_PATH))
-    pre_p = params["preprocess"]
-    test_size: float = pre_p["test_size"]
-    val_size: float = pre_p["val_size"]
-    random_state: int = pre_p["random_state"]
-
+def _save_splits(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame) -> None:
+    """Persiste os splits de treino, validação e teste em data/processed/."""
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-
-    # TODO: ajustar o nome do arquivo conforme a etapa de preprocess
-    interim_file = INTERIM_DIR / "data_clean.parquet"
-
-    if not interim_file.exists():
-        logger.warning(
-            "Arquivo interim não encontrado: %s — execute a etapa preprocess primeiro",
-            interim_file,
-        )
-        return
-
-    df = pd.read_parquet(interim_file)
-    df = build_features(df)
-
-    train_df, val_df, test_df = split_data(df, test_size, val_size, random_state)
-
     train_df.to_parquet(PROCESSED_DIR / "train.parquet", index=False)
     val_df.to_parquet(PROCESSED_DIR / "val.parquet", index=False)
     test_df.to_parquet(PROCESSED_DIR / "test.parquet", index=False)
-
     logger.info(
         "Splits salvos — treino: %d | val: %d | teste: %d",
         len(train_df), len(val_df), len(test_df),
     )
+
+
+def run() -> None:
+    """Executa a etapa de feature engineering."""
+    params = yaml.safe_load(open(PARAMS_PATH))
+    pre_p = params["preprocess"]
+    interim_file = INTERIM_DIR / "data_clean.parquet"
+
+    if not interim_file.exists():
+        logger.warning(
+            "Arquivo interim não encontrado: %s — execute preprocess primeiro",
+            interim_file,
+        )
+        return
+
+    df = build_features(pd.read_parquet(interim_file))
+    train_df, val_df, test_df = split_data(
+        df, pre_p["test_size"], pre_p["val_size"], pre_p["random_state"]
+    )
+    _save_splits(train_df, val_df, test_df)
 
 
 if __name__ == "__main__":
