@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from sklearn.model_selection import train_test_split
+
+from src.data.feature_engineering import build_interaction_features, chronological_split
 
 logger = logging.getLogger(__name__)
 
@@ -23,43 +24,35 @@ PROCESSED_DIR = Path("data/processed")
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Cria features a partir dos dados limpos.
+    """Cria features de interação para o RetailRocket dataset.
 
-    TODO: substituir pela lógica do dataset escolhido.
-    Exemplos comuns:
-      - Codificar IDs de usuário/item como inteiros
-      - Normalizar colunas numéricas
-      - Criar features de interação ou históricas
-      - Gerar amostras negativas (para feedback implícito)
+    Args:
+        df: DataFrame limpo com colunas user_idx, item_idx, timestamp, event.
+
+    Returns:
+        DataFrame com features de evento, temporais, usuário e item.
     """
-    # TODO: implementar feature engineering aqui
-    return df
+    return build_interaction_features(df)
 
 
 def split_data(
     df: pd.DataFrame,
     test_size: float,
     val_size: float,
-    random_state: int,
+    random_state: int,  # noqa: ARG001 — mantido para compatibilidade de assinatura
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Divide os dados em treino, validação e teste.
+    """Divide os dados cronologicamente em treino, validação e teste.
 
     Args:
-        df: DataFrame com features e rótulos.
+        df: DataFrame com features e coluna timestamp.
         test_size: Proporção do conjunto de teste.
-        val_size: Proporção do conjunto de validação (sobre o treino+val).
-        random_state: Semente para reprodutibilidade.
+        val_size: Proporção do conjunto de validação.
+        random_state: Ignorado — split é determinístico por timestamp.
 
     Returns:
         Tupla (train_df, val_df, test_df).
     """
-    train_val, test = train_test_split(
-        df, test_size=test_size, random_state=random_state
-    )
-    train, val = train_test_split(
-        train_val, test_size=val_size, random_state=random_state
-    )
-    return train, val, test
+    return chronological_split(df, val_size=val_size, test_size=test_size)
 
 
 def _save_splits(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame) -> None:
