@@ -9,7 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from src.models.base import ModelFactory, RecommenderBase
+from src.models.base import RecommenderBase
+from src.models.factory import ModelFactory
 
 
 class _MLPNet(nn.Module):

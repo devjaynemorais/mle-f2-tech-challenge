@@ -9,7 +9,8 @@ import numpy as np
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 
-from src.models.base import ModelFactory, RecommenderBase
+from src.models.base import RecommenderBase
+from src.models.factory import ModelFactory
 
 
 @ModelFactory.register("dummy")
