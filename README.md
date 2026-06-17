@@ -13,7 +13,7 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 | Modelo | PyTorch (MLP), Scikit-Learn (baselines) |
 | Rastreamento de experimentos | MLflow |
 | Versionamento de dados | DVC |
-| Empacotamento | uv + pyproject.toml |
+| Empacotamento | Poetry + pyproject.toml |
 | Linting | ruff + pre-commit |
 | Containerização | Docker multi-stage + docker-compose |
 | Configuração | Pydantic Settings + params.yaml |
@@ -22,7 +22,7 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 
 ```
 mle-f2-tech-challenge/
-├── config/               # Pydantic Settings + config.yaml
+├── config/               # config.yaml (parâmetros estáticos)
 ├── data/
 │   ├── raw/              # Dados brutos imutáveis (rastreados pelo DVC)
 │   ├── interim/          # Dados intermediários limpos
@@ -34,12 +34,13 @@ mle-f2-tech-challenge/
 ├── notebooks/            # EDA e exploração
 ├── scripts/              # validate_env.py
 ├── src/
+│   ├── config/           # settings.py (Pydantic Settings + .env)
 │   ├── data/             # preprocess.py (Etapa 1)
 │   ├── features/         # build_features.py (Etapa 2)
 │   ├── models/           # base.py (Factory), mlp.py, baselines.py
 │   ├── training/         # trainer.py (Etapa 3)
 │   ├── evaluation/       # evaluate.py (Etapa 4)
-│   └── utils/            # logging, helpers do MLflow
+│   └── utils/            # logging, mlflow_tracking, seed
 ├── tests/
 ├── dvc.yaml              # Definição do pipeline DVC
 ├── params.yaml           # Parâmetros dos experimentos
@@ -52,7 +53,7 @@ mle-f2-tech-challenge/
 
 ```bash
 # 1. Instalar dependências
-uv sync --extra dev
+poetry install
 
 # 2. Copiar e configurar o ambiente
 cp .env.example .env
@@ -118,12 +119,17 @@ make test-cov   # pytest com relatório de cobertura em HTML
 
 ## Dataset
 
-> A definir — ainda não selecionado. Candidatos:
-> - [Instacart Market Basket](https://www.kaggle.com/c/instacart-market-basket-analysis)
-> - [RetailRocket](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
-> - [MovieLens](https://grouplens.org/datasets/movielens/)
->
-> Qualquer dataset com ≥ 10.000 interações usuário-item é aceito.
+**RetailRocket E-commerce Dataset** — interações de usuários em loja virtual (visualizações, adições ao carrinho, compras).
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `events.csv` | Interações usuário-item com timestamp e tipo de evento |
+| `item_properties_part1/2.csv` | Propriedades dos itens ao longo do tempo |
+| `category_tree.csv` | Hierarquia de categorias |
+
+Download: [kaggle.com/datasets/retailrocket/ecommerce-dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
+
+Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
 
 ## Design Patterns
 
@@ -134,8 +140,8 @@ make test-cov   # pytest com relatório de cobertura em HTML
 
 | Critério | Peso |
 |----------|------|
-| Clean code e estrutura | 15% |
-| Reprodutibilidade (uv, lock file, .env) | 15% |
+| Clean code e estrutura | 20% |
+| Reprodutibilidade (Poetry, lock file, .env) | 15% |
 | Docker (multi-stage, compose) | 15% |
 | DVC + Pipeline (≥ 3 etapas, dvc repro) | 15% |
 | Rede neural (PyTorch MLP) | 15% |
