@@ -36,11 +36,28 @@ line-length = 88
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "ANN"]
-ignore = ["ANN101", "ANN102"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "ANN", "D", "C90"]
+ignore = [
+    "ANN101",  # self sem type hint
+    "ANN102",  # cls sem type hint
+    "D100",    # docstring em módulo público
+    "D104",    # docstring em pacote público
+    "D107",    # docstring em __init__
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN"]
+"tests/*" = ["ANN", "D"]
+"scripts/*" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
