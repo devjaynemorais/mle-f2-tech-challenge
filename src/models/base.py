@@ -6,6 +6,7 @@ Padrões aplicados:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 
@@ -44,7 +45,9 @@ class ModelFactory:
     _registry: dict[str, type[RecommenderBase]] = {}
 
     @classmethod
-    def register(cls, name: str):
+    def register(
+        cls, name: str
+    ) -> Callable[[type[RecommenderBase]], type[RecommenderBase]]:
         """Decorador que registra uma classe de modelo pelo nome."""
 
         def decorator(model_cls: type[RecommenderBase]) -> type[RecommenderBase]:
@@ -57,7 +60,9 @@ class ModelFactory:
     def create(cls, name: str, **kwargs: Any) -> RecommenderBase:
         """Instancia o modelo registrado com o nome fornecido."""
         if name not in cls._registry:
-            raise ValueError(f"Modelo '{name}' não encontrado. Disponíveis: {list(cls._registry)}")
+            available = list(cls._registry)
+            msg = f"Modelo '{name}' não encontrado. Disponíveis: {available}"
+            raise ValueError(msg)
         return cls._registry[name](**kwargs)
 
     @classmethod

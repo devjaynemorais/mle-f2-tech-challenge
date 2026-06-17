@@ -10,7 +10,6 @@ Fluxo:
 TODO: implementar load_data() e save_model() após escolher o dataset.
 """
 
-import json
 import logging
 import pickle
 from pathlib import Path
@@ -72,7 +71,8 @@ def run() -> None:
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(mlflow_p["experiment_name"])
 
-    with mlflow.start_run(run_name=mlflow_p.get("run_name", train_p["model_type"])) as run:
+    run_name = mlflow_p.get("run_name", train_p["model_type"])
+    with mlflow.start_run(run_name=run_name) as run:
         # Loga todos os hiperparâmetros definidos em params.yaml
         mlflow.log_params(train_p)
 

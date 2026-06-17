@@ -18,7 +18,9 @@ class _MLPNet(nn.Module):
     Estrutura: Linear → ReLU → Dropout → ... → Linear (1 saída por amostra)
     """
 
-    def __init__(self, input_dim: int, hidden_dims: list[int], dropout: float = 0.2) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dims: list[int], dropout: float = 0.2
+    ) -> None:
         super().__init__()
         layers: list[nn.Module] = []
         prev = input_dim
@@ -86,7 +88,9 @@ class MLPRecommender(RecommenderBase):
         loss_fn = nn.BCEWithLogitsLoss()
 
         dataset = torch.utils.data.TensorDataset(X_t, y_t)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        loader = torch.utils.data.DataLoader(
+            dataset, batch_size=self.batch_size, shuffle=True
+        )
 
         # Early stopping: para quando a loss não melhora por `patience` épocas
         best_loss, no_improve = float("inf"), 0

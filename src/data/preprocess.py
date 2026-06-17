@@ -83,7 +83,10 @@ def run() -> None:
     raw_file = RAW_DIR / "dataset.csv"
 
     if not raw_file.exists():
-        logger.warning("Arquivo bruto não encontrado: %s — coloque o dataset em data/raw/", raw_file)
+        logger.warning(
+            "Arquivo bruto não encontrado: %s — coloque o dataset em data/raw/",
+            raw_file,
+        )
         return
 
     df = pd.read_csv(raw_file)
