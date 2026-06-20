@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "E-commerce product recommendation system — FIAP MLE Phase 2"
 requires-python = ">=3.11"
 dependencies = [
-    "torch>=2.2.0",
     "scikit-learn>=1.4.0",
     "mlflow>=2.12.0",
     "dvc>=3.50.0",
@@ -13,6 +12,8 @@ dependencies = [
     "pandas>=2.2.0",
     "numpy>=1.26.0",
     "pyarrow>=15.0.0",
+    "seaborn>=0.13.2",
+    "scipy>=1.17.1",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +24,8 @@ dev = [
     "pre-commit>=3.7.0",
     "ipykernel>=6.29.0",
     "jupyterlab>=4.1.0",
+    "implicit>=0.7.3",
+    "mlxtend>=0.25.0",
 ]
 
 [build-system]
