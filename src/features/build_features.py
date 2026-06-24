@@ -53,8 +53,12 @@ def split_data(
     Returns:
         Tupla (train_df, val_df, test_df).
     """
-    train_val, test = train_test_split(df, test_size=test_size, random_state=random_state)
-    train, val = train_test_split(train_val, test_size=val_size, random_state=random_state)
+    train_val, test = train_test_split(
+        df, test_size=test_size, random_state=random_state
+    )
+    train, val = train_test_split(
+        train_val, test_size=val_size, random_state=random_state
+    )
     return train, val, test
 
 
@@ -76,7 +80,10 @@ def run() -> None:
     interim_file = INTERIM_DIR / "data_clean.parquet"
 
     if not interim_file.exists():
-        logger.warning("Arquivo interim não encontrado: %s — execute a etapa preprocess primeiro", interim_file)
+        logger.warning(
+            "Arquivo interim não encontrado: %s — execute a etapa preprocess primeiro",
+            interim_file,
+        )
         return
 
     df = pd.read_parquet(interim_file)
@@ -88,7 +95,10 @@ def run() -> None:
     val_df.to_parquet(PROCESSED_DIR / "val.parquet", index=False)
     test_df.to_parquet(PROCESSED_DIR / "test.parquet", index=False)
 
-    logger.info("Splits salvos — treino: %d | val: %d | teste: %d", len(train_df), len(val_df), len(test_df))
+    logger.info(
+        "Splits salvos — treino: %d | val: %d | teste: %d",
+        len(train_df), len(val_df), len(test_df),
+    )
 
 
 if __name__ == "__main__":

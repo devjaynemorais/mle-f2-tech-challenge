@@ -13,6 +13,7 @@ import pickle
 from pathlib import Path
 
 import mlflow
+import numpy as np
 import yaml
 from sklearn.metrics import (
     average_precision_score,
@@ -22,7 +23,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from config.settings import settings
+from src.config.settings import settings
+from src.models.base import RecommenderBase
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +34,14 @@ MODELS_DIR = Path("models/artifacts")
 METRICS_DIR = Path("metrics")
 
 
-def load_model():
+def load_model() -> RecommenderBase:
     """Carrega o modelo mais recente salvo em models/artifacts/.
 
     TODO: ajustar conforme a convenção de salvamento definida no trainer.
     """
-    # Ordena pelos mais recentes e retorna o primeiro modelo encontrado
-    run_dirs = sorted(MODELS_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    run_dirs = sorted(
+        MODELS_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     for d in run_dirs:
         model_file = d / "model.pkl"
         if model_file.exists():
@@ -56,7 +59,9 @@ def load_test_data() -> tuple:
     raise NotImplementedError("Implemente load_test_data() após escolher o dataset.")
 
 
-def compute_metrics(y_true, y_proba, threshold: float = 0.5) -> dict:
+def compute_metrics(
+    y_true: np.ndarray, y_proba: np.ndarray, threshold: float = 0.5
+) -> dict:
     """Calcula as métricas de avaliação obrigatórias do TC2.
 
     São ≥ 4 métricas conforme o requisito: ROC-AUC, Average Precision,

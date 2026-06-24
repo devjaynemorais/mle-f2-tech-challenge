@@ -235,3 +235,9 @@ metrics/*.json
 
 # Temp extraction files
 docs/tc2_text.txt
+
+# Claude Code agent skills and local tooling
+.agents/
+data/skills/
+skills-lock.json
+docs/todo.md

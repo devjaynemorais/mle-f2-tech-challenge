@@ -17,3 +17,13 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        files: ^src/
+        args: [--ignore-missing-imports, --no-strict-optional]
+        additional_dependencies:
+          - pydantic-settings
+          - types-PyYAML
