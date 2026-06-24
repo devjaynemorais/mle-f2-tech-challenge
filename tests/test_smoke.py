@@ -7,7 +7,7 @@ internamente, então passam em qualquer clone limpo do repositório.
 import numpy as np
 import pytest
 
-from src.models import MLPRecommender, ModelFactory, PopularityRecommender
+from src.models import MLPRecommender, ModelFactory
 from src.models.base import RecommenderBase
 
 

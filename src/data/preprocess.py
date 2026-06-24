@@ -35,6 +35,7 @@ def run() -> None:
         return
 
     df = pd.read_csv(RAW_FILE)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     preprocessor = RetailRocketPreprocessor(random_state=random_state)
     df_clean = preprocessor.preprocess(df)
 

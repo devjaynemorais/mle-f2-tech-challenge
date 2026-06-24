@@ -14,13 +14,16 @@ from pathlib import Path
 
 import mlflow
 import numpy as np
+import pandas as pd
 import yaml
 from sklearn.metrics import (
     average_precision_score,
     f1_score,
     precision_score,
+    precision_recall_curve,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 
 from src.config.settings import settings
@@ -50,13 +53,23 @@ def load_model() -> RecommenderBase:
     raise FileNotFoundError(f"Nenhum model.pkl encontrado em {MODELS_DIR}")
 
 
-def load_test_data() -> tuple:
-    """Carrega os dados de teste de data/processed/.
+FEATURE_COLS = [
+    "user_idx", "item_idx", "hour", "day_of_week",
+    "frequency", "engagement_score", "recency_days", "view_count",
+]
 
-    TODO: implementar conforme o formato do dataset escolhido.
-    Deve retornar (X_test, y_test).
+
+def load_test_data() -> tuple[np.ndarray, np.ndarray]:
+    """Carrega os dados de teste de data/processed/test.parquet.
+
+    Returns:
+        Tupla (X_test, y_test) como arrays float32.
+        Labels binários: weight >= 3 → 1 (addtocart/transaction), 0 (view).
     """
-    raise NotImplementedError("Implemente load_test_data() após escolher o dataset.")
+    test = pd.read_parquet(PROCESSED_DIR / "test.parquet")
+    X_test = test[FEATURE_COLS].to_numpy(dtype="float32")
+    y_test = (test["weight"] >= 3).to_numpy(dtype="float32")
+    return X_test, y_test
 
 
 def compute_metrics(
@@ -85,6 +98,18 @@ def compute_metrics(
     }
 
 
+def _save_plots(y_true: np.ndarray, y_proba: np.ndarray) -> None:
+    """Salva dados de ROC e PR curves em metrics/plots/ para o DVC rastrear."""
+    plots_dir = METRICS_DIR / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    roc_data = [{"fpr": float(f), "tpr": float(t)} for f, t in zip(fpr, tpr)]
+    (plots_dir / "roc_curve.json").write_text(json.dumps(roc_data))
+    prec, rec, _ = precision_recall_curve(y_true, y_proba)
+    pr_data = [{"precision": float(p), "recall": float(r)} for p, r in zip(prec, rec)]
+    (plots_dir / "pr_curve.json").write_text(json.dumps(pr_data))
+
+
 def _log_and_save(metrics: dict, mlflow_p: dict) -> None:
     """Loga métricas no MLflow e persiste o JSON para o DVC rastrear."""
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
@@ -102,8 +127,10 @@ def run() -> None:
     params = yaml.safe_load(open(PARAMS_PATH))
     model = load_model()
     X_test, y_test = load_test_data()
-    metrics = compute_metrics(y_test, model.predict_proba(X_test))
+    y_proba = model.predict_proba(X_test)
+    metrics = compute_metrics(y_test, y_proba)
     logger.info("Métricas de teste: %s", metrics)
+    _save_plots(y_test, y_proba)
     _log_and_save(metrics, params["mlflow"])
 
 

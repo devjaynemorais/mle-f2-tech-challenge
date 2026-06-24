@@ -27,7 +27,7 @@ mle-f2-tech-challenge/
 │   ├── raw/              # Dados brutos imutáveis (rastreados pelo DVC)
 │   ├── interim/          # Dados intermediários limpos
 │   └── processed/        # Splits train/val/test
-├── docs/                 # model_card.md + PDF dos requisitos
+├── docs/                 # model_card.md, eda.md, preprocessing.md, tests.md
 ├── metrics/              # Métricas DVC (JSON)
 ├── models/
 │   └── artifacts/        # Artefatos do modelo serializado
@@ -35,7 +35,7 @@ mle-f2-tech-challenge/
 ├── scripts/              # validate_env.py
 ├── src/
 │   ├── config/           # settings.py (Pydantic Settings + .env)
-│   ├── data/             # preprocess.py (Etapa 1)
+│   ├── data/             # preprocess.py, feature_engineering.py, dataset.py
 │   ├── features/         # build_features.py (Etapa 2)
 │   ├── models/           # base.py (Factory), mlp.py, baselines.py
 │   ├── training/         # trainer.py (Etapa 3)
@@ -140,7 +140,7 @@ Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
 
 | Critério | Peso |
 |----------|------|
-| Clean code e estrutura | 20% |
+| Clean code e estrutura | 15% |
 | Reprodutibilidade (Poetry, lock file, .env) | 15% |
 | Docker (multi-stage, compose) | 15% |
 | DVC + Pipeline (≥ 3 etapas, dvc repro) | 15% |
