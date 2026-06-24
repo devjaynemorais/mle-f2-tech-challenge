@@ -57,6 +57,33 @@ def save_model(model: RecommenderBase, run_id: str) -> Path:
     return dest
 
 
+def _create_model(train_p: dict, input_dim: int) -> RecommenderBase:
+    """Instancia o modelo via ModelFactory com os parâmetros do params.yaml."""
+    return ModelFactory.create(
+        train_p["model_type"],
+        input_dim=input_dim,
+        epochs=train_p["epochs"],
+        batch_size=train_p["batch_size"],
+        lr=train_p["learning_rate"],
+        patience=train_p["early_stopping_patience"],
+        random_state=train_p["random_state"],
+    )
+
+
+def _train_and_log(train_p: dict, mlflow_p: dict) -> None:
+    """Treina o modelo e registra o artefato no MLflow."""
+    X_train, y_train, _X_val, _y_val = load_data()
+    run_name = mlflow_p.get("run_name", train_p["model_type"])
+    with mlflow.start_run(run_name=run_name) as active_run:
+        mlflow.log_params(train_p)
+        model = _create_model(train_p, X_train.shape[1])
+        logger.info("Treinando modelo: %s", train_p["model_type"])
+        model.fit(X_train, y_train)
+        artifact_dir = save_model(model, active_run.info.run_id)
+        mlflow.log_artifact(str(artifact_dir))
+        logger.info("Run MLflow: %s", active_run.info.run_id)
+
+
 def run() -> None:
     """Executa a etapa de treinamento."""
     params = yaml.safe_load(open(PARAMS_PATH))
@@ -66,43 +93,9 @@ def run() -> None:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
-    X_train, y_train, X_val, y_val = load_data()
-
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(mlflow_p["experiment_name"])
-
-    run_name = mlflow_p.get("run_name", train_p["model_type"])
-    with mlflow.start_run(run_name=run_name) as run:
-        # Loga todos os hiperparâmetros definidos em params.yaml
-        mlflow.log_params(train_p)
-
-        # Cria o modelo pelo nome (ex: "mlp", "logistic", "dummy")
-        model = ModelFactory.create(
-            train_p["model_type"],
-            input_dim=X_train.shape[1],
-            epochs=train_p["epochs"],
-            batch_size=train_p["batch_size"],
-            lr=train_p["learning_rate"],
-            patience=train_p["early_stopping_patience"],
-            random_state=train_p["random_state"],
-        )
-
-        logger.info("Treinando modelo: %s", train_p["model_type"])
-        model.fit(X_train, y_train)
-
-        # TODO: calcular métricas de validação e logar no MLflow
-        # Exemplo:
-        # val_proba = model.predict_proba(X_val)
-        # metrics = compute_metrics(y_val, val_proba)
-        # mlflow.log_metrics(metrics)
-
-        artifact_dir = save_model(model, run.info.run_id)
-        mlflow.log_artifact(str(artifact_dir))
-
-        # TODO: salvar métricas em metrics/train_metrics.json para o DVC rastrear
-        # json.dump(metrics, open(METRICS_DIR / "train_metrics.json", "w"), indent=2)
-
-        logger.info("Run MLflow: %s", run.info.run_id)
+    _train_and_log(train_p, mlflow_p)
 
 
 if __name__ == "__main__":
