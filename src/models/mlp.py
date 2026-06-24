@@ -9,7 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from src.models.base import ModelFactory, RecommenderBase
+from src.models.base import RecommenderBase
+from src.models.factory import ModelFactory
 
 
 class _MLPNet(nn.Module):
@@ -18,7 +19,9 @@ class _MLPNet(nn.Module):
     Estrutura: Linear → ReLU → Dropout → ... → Linear (1 saída por amostra)
     """
 
-    def __init__(self, input_dim: int, hidden_dims: list[int], dropout: float = 0.2) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dims: list[int], dropout: float = 0.2
+    ) -> None:
         super().__init__()
         layers: list[nn.Module] = []
         prev = input_dim
@@ -76,19 +79,26 @@ class MLPRecommender(RecommenderBase):
             y: Rótulos binários (n_amostras,).
         """
         torch.manual_seed(self.random_state)
-
-        # Converte para tensores PyTorch
         X_t = torch.tensor(np.array(X), dtype=torch.float32)
         y_t = torch.tensor(np.array(y), dtype=torch.float32)
-
         self._net = _MLPNet(self.input_dim, self.hidden_dims, self.dropout)
         optimizer = torch.optim.Adam(self._net.parameters(), lr=self.lr)
         loss_fn = nn.BCEWithLogitsLoss()
+        loader = torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(X_t, y_t),
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+        self._run_early_stopping(loader, optimizer, loss_fn)
+        return self
 
-        dataset = torch.utils.data.TensorDataset(X_t, y_t)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-
-        # Early stopping: para quando a loss não melhora por `patience` épocas
+    def _run_early_stopping(
+        self,
+        loader: torch.utils.data.DataLoader,
+        optimizer: torch.optim.Optimizer,
+        loss_fn: nn.Module,
+    ) -> None:
+        """Loop de treino com early stopping por `patience` épocas sem melhora."""
         best_loss, no_improve = float("inf"), 0
         for _ in range(self.epochs):
             loss = self._train_epoch(loader, optimizer, loss_fn)
@@ -98,8 +108,6 @@ class MLPRecommender(RecommenderBase):
                 no_improve += 1
                 if no_improve >= self.patience:
                     break
-
-        return self
 
     def _train_epoch(
         self,

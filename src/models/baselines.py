@@ -9,7 +9,8 @@ import numpy as np
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 
-from src.models.base import ModelFactory, RecommenderBase
+from src.models.base import RecommenderBase
+from src.models.factory import ModelFactory
 
 
 @ModelFactory.register("dummy")
@@ -50,8 +51,12 @@ class LogisticRecommender(RecommenderBase):
         random_state: Semente para reprodutibilidade.
     """
 
-    def __init__(self, C: float = 1.0, max_iter: int = 1000, random_state: int = 42) -> None:
-        self._model = LogisticRegression(C=C, max_iter=max_iter, random_state=random_state)
+    def __init__(
+        self, C: float = 1.0, max_iter: int = 1000, random_state: int = 42
+    ) -> None:
+        self._model = LogisticRegression(
+            C=C, max_iter=max_iter, random_state=random_state
+        )
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "LogisticRecommender":
         """Treina a regressão logística."""

@@ -17,5 +17,7 @@ data/processed/
 models/artifacts/
 notebooks/
 docs/
+tests/
+scripts/
 .env
 *.md

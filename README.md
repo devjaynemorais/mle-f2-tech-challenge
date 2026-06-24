@@ -13,7 +13,7 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 | Modelo | PyTorch (MLP), Scikit-Learn (baselines) |
 | Rastreamento de experimentos | MLflow |
 | Versionamento de dados | DVC |
-| Empacotamento | uv + pyproject.toml |
+| Empacotamento | Poetry + pyproject.toml |
 | Linting | ruff + pre-commit |
 | Containerização | Docker multi-stage + docker-compose |
 | Configuração | Pydantic Settings + params.yaml |
@@ -22,24 +22,25 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 
 ```
 mle-f2-tech-challenge/
-├── config/               # Pydantic Settings + config.yaml
+├── config/               # config.yaml (parâmetros estáticos)
 ├── data/
 │   ├── raw/              # Dados brutos imutáveis (rastreados pelo DVC)
 │   ├── interim/          # Dados intermediários limpos
 │   └── processed/        # Splits train/val/test
-├── docs/                 # model_card.md + PDF dos requisitos
+├── docs/                 # model_card.md, eda.md, preprocessing.md, tests.md
 ├── metrics/              # Métricas DVC (JSON)
 ├── models/
 │   └── artifacts/        # Artefatos do modelo serializado
 ├── notebooks/            # EDA e exploração
 ├── scripts/              # validate_env.py
 ├── src/
-│   ├── data/             # preprocess.py (Etapa 1)
+│   ├── config/           # settings.py (Pydantic Settings + .env)
+│   ├── data/             # preprocess.py, feature_engineering.py, dataset.py
 │   ├── features/         # build_features.py (Etapa 2)
 │   ├── models/           # base.py (Factory), mlp.py, baselines.py
 │   ├── training/         # trainer.py (Etapa 3)
 │   ├── evaluation/       # evaluate.py (Etapa 4)
-│   └── utils/            # logging, helpers do MLflow
+│   └── utils/            # logging, mlflow_tracking, seed
 ├── tests/
 ├── dvc.yaml              # Definição do pipeline DVC
 ├── params.yaml           # Parâmetros dos experimentos
@@ -50,30 +51,24 @@ mle-f2-tech-challenge/
 
 ## Início Rápido
 
-```bash
-# 1. Instalar dependências
-uv sync --extra dev
+**Pré-requisitos:** Python 3.11, Make, Docker
 
-# 2. Copiar e configurar o ambiente
+```bash
+# 1. Criar ambiente virtual e instalar dependências
+make env
+
+# 2. Copiar e configurar variáveis de ambiente
 cp .env.example .env
 
-# 3. Validar o ambiente
-make validate-env
+# 3. Obter os dados (DVC remote ou Kaggle API)
+dvc pull
+# ou: python scripts/download_dataset.py
 
-# 4. Colocar o dataset em data/raw/ e rodar o pipeline completo
-make dvc-repro
+# 4. Rodar pipeline completo (validate-env + dvc repro)
+make setup
 
 # 5. Iniciar a UI do MLflow
 make mlflow
-```
-
-### Windows (sem make)
-
-```powershell
-python tasks.py env
-python tasks.py validate-env
-python tasks.py dvc-repro
-python tasks.py mlflow
 ```
 
 ## Pipeline DVC
@@ -97,45 +92,56 @@ Ou reproduzir o pipeline completo:
 dvc repro
 ```
 
-## Docker
+## Servir a API
+
+**Opção A — local** (usa código e modelo do host diretamente):
 
 ```bash
-# Build e iniciar MLflow + serviço de treino
-make docker-up
+make api
+```
 
-# Parar todos os serviços
-make docker-down
+**Opção B — Docker** (requer rebuild para incorporar modelo e código atualizados):
+
+```bash
+make compose-build   # builda as imagens
+make compose-full    # sobe MLflow + treino + API
+make compose-down    # para todos os serviços
 ```
 
 ## Desenvolvimento
 
 ```bash
-make lint       # ruff check + verificação de formatação
-make format     # corrigir problemas de lint automaticamente
-make test       # pytest
-make test-cov   # pytest com relatório de cobertura em HTML
+make lint        # ruff check + verificação de formatação
+make format      # corrigir problemas de lint automaticamente
+make test        # pytest
+make test-cov    # pytest com relatório de cobertura em HTML
 ```
 
 ## Dataset
 
-> A definir — ainda não selecionado. Candidatos:
-> - [Instacart Market Basket](https://www.kaggle.com/c/instacart-market-basket-analysis)
-> - [RetailRocket](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
-> - [MovieLens](https://grouplens.org/datasets/movielens/)
->
-> Qualquer dataset com ≥ 10.000 interações usuário-item é aceito.
+**RetailRocket E-commerce Dataset** — interações de usuários em loja virtual (visualizações, adições ao carrinho, compras).
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `events.csv` | Interações usuário-item com timestamp e tipo de evento |
+| `item_properties_part1/2.csv` | Propriedades dos itens ao longo do tempo |
+| `category_tree.csv` | Hierarquia de categorias |
+
+Download: [kaggle.com/datasets/retailrocket/ecommerce-dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
+
+Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
 
 ## Design Patterns
 
-- **Factory** (`src/models/base.py`): `ModelFactory.create("mlp")` instancia qualquer recomendador registrado.
-- **Strategy** (`src/data/preprocess.py`): subclasses de `PreprocessStrategy` trocam a lógica de pré-processamento sem alterar o pipeline.
+- **Factory** (`src/models/factory.py`): `ModelFactory.create("mlp")` instancia qualquer recomendador registrado via decorator `@ModelFactory.register`.
+- **Strategy** (`src/data/preprocessor.py`): subclasses de `PreprocessStrategy` (ex: `RetailRocketPreprocessor`) trocam a lógica de pré-processamento sem alterar o pipeline.
 
 ## Critérios de Avaliação
 
 | Critério | Peso |
 |----------|------|
 | Clean code e estrutura | 15% |
-| Reprodutibilidade (uv, lock file, .env) | 15% |
+| Reprodutibilidade (Poetry, lock file, .env) | 15% |
 | Docker (multi-stage, compose) | 15% |
 | DVC + Pipeline (≥ 3 etapas, dvc repro) | 15% |
 | Rede neural (PyTorch MLP) | 15% |

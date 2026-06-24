@@ -1,0 +1,120 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python -m src.data.preprocess
+    deps:
+    - path: data/raw/
+      hash: md5
+      md5: 19cdee87944c59fc15c51396fe37cd88.dir
+      size: 987498023
+      nfiles: 4
+    - path: src/data/preprocess.py
+      hash: md5
+      md5: ca046dffc91224dc69f1c6d61174d867
+      size: 1373
+    params:
+      params.yaml:
+        preprocess:
+          test_size: 0.2
+          val_size: 0.1
+          random_state: 42
+    outs:
+    - path: data/interim/
+      hash: md5
+      md5: f895c79ec14e864d81fac59e4e2115d0.dir
+      size: 16459625
+      nfiles: 1
+  feature_eng:
+    cmd: python -m src.features.build_features
+    deps:
+    - path: data/interim/
+      hash: md5
+      md5: f895c79ec14e864d81fac59e4e2115d0.dir
+      size: 16459625
+      nfiles: 1
+    - path: src/features/build_features.py
+      hash: md5
+      md5: 7b7ec1e41a54c7c19bc256959936f2f7
+      size: 2929
+    params:
+      params.yaml:
+        feature_eng:
+          random_state: 42
+    outs:
+    - path: data/processed/
+      hash: md5
+      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
+      size: 21481969
+      nfiles: 3
+  train:
+    cmd: python -m src.training.trainer
+    deps:
+    - path: data/processed/
+      hash: md5
+      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
+      size: 21481969
+      nfiles: 3
+    - path: src/models/
+      hash: md5
+      md5: 91468c41bc361164c6297df57e0e25ca.dir
+      size: 27816
+      nfiles: 10
+    - path: src/training/trainer.py
+      hash: md5
+      md5: 9bc1281b8effcf5abfa1d7237a0b019d
+      size: 4368
+    params:
+      params.yaml:
+        train:
+          model_type: mlp
+          epochs: 50
+          batch_size: 256
+          learning_rate: 0.001
+          early_stopping_patience: 5
+          random_state: 42
+    outs:
+    - path: metrics/train_metrics.json
+      hash: md5
+      md5: 56d73f28c1949502145fe4451416e4d8
+      size: 46
+    - path: models/artifacts/
+      hash: md5
+      md5: 61ec8df5ef195b90ecb6bf0343a79aaf.dir
+      size: 41636
+      nfiles: 1
+  evaluate:
+    cmd: python -m src.evaluation.evaluate
+    deps:
+    - path: data/processed/
+      hash: md5
+      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
+      size: 21481969
+      nfiles: 3
+    - path: models/artifacts/
+      hash: md5
+      md5: 61ec8df5ef195b90ecb6bf0343a79aaf.dir
+      size: 41636
+      nfiles: 1
+    - path: src/evaluation/evaluate.py
+      hash: md5
+      md5: acc100725c5aee449326c99c4fba4015
+      size: 4617
+    params:
+      params.yaml:
+        train:
+          model_type: mlp
+          epochs: 50
+          batch_size: 256
+          learning_rate: 0.001
+          early_stopping_patience: 5
+          random_state: 42
+    outs:
+    - path: metrics/eval_metrics.json
+      hash: md5
+      md5: ca36ced452a7aee8e9001a9742a97def
+      size: 120
+    - path: metrics/plots/
+      hash: md5
+      md5: 8fded13d2fbf1cbb95dfd95a009e6063.dir
+      size: 138
+      nfiles: 2

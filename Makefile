@@ -1,64 +1,93 @@
-.PHONY: env install lint format test dvc-repro dvc-pull mlflow docker-build docker-up docker-down validate-env
+.PHONY: env install lint format test setup api \
+        dvc-repro dvc-pull dvc-push \
+        mlflow compose-build compose-full compose-down \
+        validate-env preprocess feature-eng train evaluate
+
+# ─── Ambiente ─────────────────────────────────────────────────────────────────
 
 env:
-	uv sync --extra dev
+	pip install poetry==1.8.3 --quiet
+	poetry install --with dev
 
-install:
-	uv sync --extra dev
+install: env
+
+# ─── Qualidade de Código ──────────────────────────────────────────────────────
 
 lint:
-	uv run ruff check src/ tests/
-	uv run ruff format --check src/ tests/
+	poetry run ruff check src/ tests/
+	poetry run ruff format --check src/ tests/
 
 format:
-	uv run ruff check --fix src/ tests/
-	uv run ruff format src/ tests/
+	poetry run ruff check --fix src/ tests/
+	poetry run ruff format src/ tests/
+
+# ─── Testes ───────────────────────────────────────────────────────────────────
 
 test:
-	uv run pytest tests/ -v
+	poetry run pytest tests/ -v
 
 test-cov:
-	uv run pytest tests/ --cov=src --cov-report=html
+	poetry run pytest tests/ --cov=src --cov-report=html
 
-dvc-init:
-	dvc init
+# ─── Pipeline Completo ────────────────────────────────────────────────────────
+
+# Equivalente ao 'make setup' do outro projeto:
+# executa todo o pipeline de dados → features → treino → avaliação via DVC
+setup: validate-env dvc-repro
+
+# ─── Estágios individuais do pipeline ─────────────────────────────────────────
+
+preprocess:
+	poetry run python -m src.data.preprocess
+
+feature-eng:
+	poetry run python -m src.features.build_features
+
+train:
+	poetry run python -m src.training.trainer
+
+evaluate:
+	poetry run python -m src.evaluation.evaluate
+
+# ─── DVC ──────────────────────────────────────────────────────────────────────
 
 dvc-repro:
-	dvc repro
+	poetry run dvc repro
 
 dvc-pull:
-	dvc pull
+	poetry run dvc pull
 
 dvc-push:
-	dvc push
+	poetry run dvc push
+
+# ─── Serviços Locais ──────────────────────────────────────────────────────────
 
 mlflow:
-	uv run mlflow server \
+	poetry run mlflow server \
 		--host 0.0.0.0 \
 		--port 5000 \
 		--backend-store-uri sqlite:///mlflow.db \
 		--default-artifact-root ./mlartifacts
 
-docker-build:
+# Opção A — API local (usa código e modelo do host diretamente)
+api:
+	poetry run uvicorn src.serving.api:app \
+		--host 0.0.0.0 --port 8000 --reload
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+
+# Opção B — Docker (requer rebuild para incorporar modelo e código atualizados)
+compose-build:
 	docker compose build
 
-docker-up:
-	docker compose up -d
+# Sobe MLflow + treino + API
+compose-full:
+	docker compose up
 
-docker-down:
+compose-down:
 	docker compose down
 
+# ─── Utilitários ──────────────────────────────────────────────────────────────
+
 validate-env:
-	uv run python scripts/validate_env.py
-
-preprocess:
-	uv run python -m src.data.preprocess
-
-feature-eng:
-	uv run python -m src.features.build_features
-
-train:
-	uv run python -m src.training.trainer
-
-evaluate:
-	uv run python -m src.evaluation.evaluate
+	poetry run python scripts/validate_env.py
