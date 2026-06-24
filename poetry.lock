@@ -2555,6 +2555,61 @@ files = [
 all = ["mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
 
 [[package]]
+name = "implicit"
+version = "0.7.3"
+description = "Collaborative Filtering for Implicit Feedback Datasets"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "implicit-0.7.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:17a844e9783550d33148fda6b8e9067bb4448d4f2b154ec4ef97df24d16bccdd"},
+    {file = "implicit-0.7.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:73346fe465ddbf9281627816300cc4249817bd5284ace023721717f22288656b"},
+    {file = "implicit-0.7.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:d479f91657af5dfade0c87a671303acfc954d8bb2aaf5622524783dff490596f"},
+    {file = "implicit-0.7.3-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:7d80d227d1f4d75e7cbbec7cde02560f732710537765fd3157afb14a87c46070"},
+    {file = "implicit-0.7.3-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:0217a6e8e2d2c217afde258e81d0dd53348e3a3ac36c298c151c7ebc722ae36d"},
+    {file = "implicit-0.7.3-cp310-cp310-win_amd64.whl", hash = "sha256:0b4b35427fadf6c5183391ea913b5b2a08b886af90e40343743ca3490dbbed1f"},
+    {file = "implicit-0.7.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:a059c926f23813d288b0ad68e436c84ed24c7049a26dc1b4cced70c9b8d1cf40"},
+    {file = "implicit-0.7.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:7a6035c0fbe89eef9d1789367c8097eb3145af3cfffd0dc0e92b2570ab67a6fc"},
+    {file = "implicit-0.7.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:77b9b93ea7840be5367c0b49ff90a371d5f5e86bc4743776ee491dfb62854c2b"},
+    {file = "implicit-0.7.3-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:e4d56a2d9db92e9cf1d0c9af740581d40423c216b0e207d7d72d59a0ca5519c2"},
+    {file = "implicit-0.7.3-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:bad1d7263ce295674562cf74482a83ae6847579579f8e2f5e70da840386c2c14"},
+    {file = "implicit-0.7.3-cp311-cp311-win_amd64.whl", hash = "sha256:02cf46507f62514415374511cc79b2cba8021d9d432abfca4407276d4d41bc4d"},
+    {file = "implicit-0.7.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:4970db19607f6f33cc4f2567233e03a4902191b6ebed7f264f8810d730dadb23"},
+    {file = "implicit-0.7.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:a04066fa5798bb094533678b45f1a3298cd44acb8c42f516fe46893be1989227"},
+    {file = "implicit-0.7.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:4483a3746d97f077c61d87a23bc7b6948ae75957def1cb4828d4a96ec5b91e75"},
+    {file = "implicit-0.7.3-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:ab5825723918b790cab45c2ec64669ac03b1b1774e9ce62957b67ad37fdf2d45"},
+    {file = "implicit-0.7.3-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:0de3734a74db5248b474ebf2c2e9dcf9ab16de137a009436f6ae8f8880486ac2"},
+    {file = "implicit-0.7.3-cp312-cp312-win_amd64.whl", hash = "sha256:c3e10e634a1b24bb1e8a036529940b8884c33a2dbb9fb19194827c0b68802edc"},
+    {file = "implicit-0.7.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:193ac8dc10614fc0db153a0bf3a7f53f4cbad094c1b7938c7f22c796e541a3bb"},
+    {file = "implicit-0.7.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:36bb093bad91479e9226846de59430848165c6e423c8959b191e009f04bd8619"},
+    {file = "implicit-0.7.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:00a7791b7b0a6a0802c95dc88a432e5af6beb19cd4a948196df98fb42a2a7d96"},
+    {file = "implicit-0.7.3-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:6a2caddac3ca46840bb8db5f8a7d386b00c9c708095e8df86919c737c3ceca8e"},
+    {file = "implicit-0.7.3-cp313-cp313-manylinux2014_x86_64.whl", hash = "sha256:71573a1083b33878032c44e4caa04c6853b0f1c959bf5460f4fb07e396267fc4"},
+    {file = "implicit-0.7.3-cp313-cp313-win_amd64.whl", hash = "sha256:395926a937cc75e89eecd5b9042df18b6b2dca826bb7e11b2abdff7584a2ea4e"},
+    {file = "implicit-0.7.3-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:30b46876e27add6d65125fd9dc0b9af4a1b5667123cf76aefbd38bcdd23e69b4"},
+    {file = "implicit-0.7.3-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:7299d2d127ba86199c5794d17db923f45d9ffe1b4eb5cdd3ba5aa64600dfbe2d"},
+    {file = "implicit-0.7.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:53f6607bc2ec2c5f4b032e7a904a8cec7c6aa552bd844a69ad46ee65225cb1e0"},
+    {file = "implicit-0.7.3-cp314-cp314-manylinux2014_aarch64.whl", hash = "sha256:7518514aaeb3348103a8bb31e15e45d1af1c4564403dd9dbe7d09c5e85ad8b83"},
+    {file = "implicit-0.7.3-cp314-cp314-manylinux2014_x86_64.whl", hash = "sha256:ec1f2c451685898de0379e12da29e6a50391164f4b21760cb4f06a35ff1a8e8f"},
+    {file = "implicit-0.7.3-cp314-cp314-win_amd64.whl", hash = "sha256:bf7424055ae22289e6d519b7e8bc31e7af8ea1e07a0ca6fd85c4d2f4822f3ae3"},
+    {file = "implicit-0.7.3-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:205bacf269636d965f9c9dd841652fe03d47fbd9707db4933013de24fa0fef08"},
+    {file = "implicit-0.7.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:ce83cc1d0cbd1c8d55b5f665dffeaa80768d364853e8532dac992b8c54b2b195"},
+    {file = "implicit-0.7.3-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:2734cf6c695ce4e8704f82dee9fc8fe6eb6ef7df8eb4e10f4558e2421d819dc3"},
+    {file = "implicit-0.7.3-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:6ea82900e1ce7bf7c2de49a1be5374ce9df5a66327b5b473090527f9cfbf3f9d"},
+    {file = "implicit-0.7.3-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:3e5cbf029df5cd86c7d809fdad7084d50d10ec24994ebc94cbcfd9e660928ae9"},
+    {file = "implicit-0.7.3-cp39-cp39-win_amd64.whl", hash = "sha256:9d393cd27190e43485bf0a4d1f34a7974a799ab44ed53b2dbff5f65b8ff4b63e"},
+    {file = "implicit-0.7.3.tar.gz", hash = "sha256:9571a52d70b3667e99a6e6aae6681526dd3286c765cf0ea10e1073d068a98057"},
+]
+
+[package.dependencies]
+numpy = ">=1.17.0"
+scipy = ">=0.16"
+threadpoolctl = "*"
+tqdm = ">=4.27"
+
+[package.extras]
+gpu = ["rmm-cu13"]
+
+[[package]]
 name = "importlib-metadata"
 version = "9.0.0"
 description = "Read metadata from Python packages"
@@ -3757,6 +3812,29 @@ opentelemetry-sdk = ">=1.9.0,<3"
 packaging = "<27"
 protobuf = ">=3.12.0,<8"
 pydantic = ">=2.0.0,<3"
+
+[[package]]
+name = "mlxtend"
+version = "0.25.0"
+description = "Machine Learning Library Extensions"
+optional = false
+python-versions = ">=3.11"
+files = [
+    {file = "mlxtend-0.25.0-py3-none-any.whl", hash = "sha256:71b9500d9cb506642588995783d681a30c99a3b35abfbeb7b4e800d217fc12a5"},
+    {file = "mlxtend-0.25.0.tar.gz", hash = "sha256:7fd52f1c55ea80036945490ea54c497aa2251ac03cf8e728cde12275d2169bcc"},
+]
+
+[package.dependencies]
+joblib = ">=1.5.2"
+matplotlib = ">=3.10.8"
+numpy = ">=2.3.5"
+pandas = ">=2.3.3"
+scikit-learn = ">=1.8.0"
+scipy = ">=1.16.3"
+
+[package.extras]
+docs = ["markdown", "mkdocs", "mkdocs-bootswatch", "nbconvert", "python-markdown-math", "pyyaml"]
+testing = ["coverage", "pytest"]
 
 [[package]]
 name = "mpmath"
@@ -7637,5 +7715,5 @@ type = ["pytest-mypy (>=1.0.1)"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.11"
-content-hash = "704cd9f230109c5d00c6716c19add1b3009a093219f271d6e70fd4a0f42ca4df"
+python-versions = "^3.14.3"
+content-hash = "a64cf57fa4125c5d5b7d3e2baef7dee945ea95372c091ff9e81830d008f3d787"
