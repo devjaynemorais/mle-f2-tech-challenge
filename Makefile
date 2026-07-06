@@ -1,7 +1,8 @@
 .PHONY: env install lint format test setup api \
         dvc-repro dvc-pull dvc-push \
         mlflow compose-build compose-full compose-down \
-        validate-env preprocess feature-eng train evaluate
+        compose-pipeline compose-promote \
+        validate-env preprocess feature-eng train evaluate promote
 
 # ─── Ambiente ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,10 @@ train:
 evaluate:
 	poetry run python -m src.evaluation.evaluate
 
+# Registra o melhor run no MLflow Registry e promove Staging → Production
+promote:
+	poetry run python -m src.models.registry
+
 # ─── DVC ──────────────────────────────────────────────────────────────────────
 
 dvc-repro:
@@ -62,10 +67,13 @@ dvc-push:
 
 # ─── Serviços Locais ──────────────────────────────────────────────────────────
 
+# Porta parametrizável (padrão 5000). Se a 5000 estiver ocupada, rode:
+#   make mlflow MLFLOW_PORT=5001   (e ajuste MLFLOW_TRACKING_URI no .env)
+MLFLOW_PORT ?= 5000
 mlflow:
 	poetry run mlflow server \
 		--host 0.0.0.0 \
-		--port 5000 \
+		--port $(MLFLOW_PORT) \
 		--backend-store-uri sqlite:///mlflow.db \
 		--default-artifact-root ./mlartifacts
 
@@ -83,6 +91,20 @@ compose-build:
 # Sobe MLflow + treino + API
 compose-full:
 	docker compose up
+
+# Pipeline de ML no Docker: sobe o MLflow e roda train → evaluate → promote
+# como jobs one-shot (não sobe a API). Requer .env (copie de .env.example).
+compose-pipeline:
+	docker compose up -d mlflow
+	docker compose run --rm train
+	docker compose run --rm evaluate
+	docker compose run --rm promote
+	@echo "Modelo promovido — veja models/promoted_model.json e a aba Models em http://localhost:5000"
+
+# Apenas o passo de promoção no Docker (assume que já houve treino no MLflow)
+compose-promote:
+	docker compose up -d mlflow
+	docker compose run --rm promote
 
 compose-down:
 	docker compose down

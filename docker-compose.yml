@@ -4,7 +4,8 @@ services:
       context: .
       target: mlflow-server
     ports:
-      - "5000:5000"
+      # porta do host parametrizável para evitar conflitos (padrão 5000)
+      - "${MLFLOW_PORT:-5000}:5000"
     volumes:
       - ./mlartifacts:/mlartifacts
     networks:
@@ -22,6 +23,9 @@ services:
       target: runtime
     command: src.training.trainer
     env_file: .env
+    environment:
+      # dentro da rede compose o servidor MLflow é acessível pelo nome do serviço
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes:
       - ./data:/app/data
       - ./models:/app/models
@@ -38,6 +42,8 @@ services:
       target: runtime
     command: src.evaluation.evaluate
     env_file: .env
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes:
       - ./data:/app/data
       - ./models:/app/models
@@ -49,6 +55,26 @@ services:
       - ml-network
     profiles:
       - eval
+
+  promote:
+    build:
+      context: .
+      target: runtime
+    command: src.models.registry
+    env_file: .env
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./metrics:/app/metrics
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    networks:
+      - ml-network
+    profiles:
+      - promote
 
   api:
     build:
