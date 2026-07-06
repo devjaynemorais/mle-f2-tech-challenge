@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.serving.recommender import RecommendationService
 from src.serving.store import FeatureStore
 
 
@@ -79,3 +80,38 @@ def test_load_from_local_reads_record_and_unpickles(tmp_path: Path):
 
     model = _load_from_local(record, artifacts_dir)
     assert model.predict_proba(np.zeros((2, 8))).tolist() == [0.5, 0.5]
+
+
+class _ItemIdxModel:
+    """Modelo fake: score = item_idx (coluna 1), determinístico."""
+
+    def predict_proba(self, X):
+        return X[:, 1].astype(float)
+
+
+def _service() -> RecommendationService:
+    store = _store_with_item12()
+    return RecommendationService(_ItemIdxModel(), store, max_candidates=10)
+
+
+def test_recommend_ranks_and_excludes_seen():
+    result = _service().recommend(user_id=1, top_k=5)
+    assert result["strategy"] == "model"
+    items = [r["item_idx"] for r in result["recommendations"]]
+    # user 1 já viu 10 e 11; sobra apenas 12
+    assert items == [12]
+    assert result["count"] == 1
+
+
+def test_recommend_unknown_user_uses_popularity():
+    result = _service().recommend(user_id=999, top_k=2)
+    assert result["strategy"] == "popularity"
+    assert [r["item_idx"] for r in result["recommendations"]] == [11, 10]
+
+
+def test_recommend_scores_are_descending():
+    store = FeatureStore(_sample_interactions())  # itens 10, 11 (nenhum item 12)
+    svc = RecommendationService(_ItemIdxModel(), store, max_candidates=10)
+    result = svc.recommend(user_id=2, top_k=5)  # user 2 viu 11 → sobra 10
+    scores = [r["score"] for r in result["recommendations"]]
+    assert scores == sorted(scores, reverse=True)
