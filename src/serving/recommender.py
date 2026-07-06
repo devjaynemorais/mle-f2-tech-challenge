@@ -29,8 +29,11 @@ class RecommendationService:
 
     def recommend(self, user_id: int, top_k: int) -> dict:
         """Retorna as top-k recomendações e a estratégia usada."""
+        recs: list[dict] = []
         if self.store.has_user(user_id):
-            recs, strategy = self._model_recommend(user_id, top_k), "model"
+            recs = self._model_recommend(user_id, top_k)
+        if recs:
+            strategy = "model"
         else:
             recs, strategy = self._popularity_recommend(top_k), "popularity"
         return {
@@ -41,12 +44,12 @@ class RecommendationService:
         }
 
     def _model_recommend(self, user_id: int, top_k: int) -> list[dict]:
-        """Pontua os itens candidatos não vistos e ranqueia."""
+        """Pontua os itens candidatos não vistos e ranqueia (vazio se não há)."""
         candidates = self.store.candidate_items(self.max_candidates)
         seen = self.store.seen_items(user_id)
         items = candidates[~np.isin(candidates, list(seen))]
         if items.size == 0:
-            return self._popularity_recommend(top_k)
+            return []
         scores = self.model.predict_proba(self._build_matrix(user_id, items))
         order = np.argsort(scores)[::-1][:top_k]
         return [

@@ -153,3 +153,27 @@ def test_recommend_without_service_returns_503():
     client = TestClient(api_module.app)
     api_module.state["service"] = None
     assert client.get("/recommend", params={"user_id": 1}).status_code == 503
+
+
+def test_recommend_orders_multiple_candidates_descending():
+    # user 3 já viu apenas o item 12; sobram 11 e 10 (score = item_idx)
+    result = _service().recommend(user_id=3, top_k=5)
+    assert result["strategy"] == "model"
+    items = [r["item_idx"] for r in result["recommendations"]]
+    assert items == [11, 10]
+
+
+def test_recommend_known_user_seen_all_falls_back_to_popularity():
+    df = pd.DataFrame(
+        {
+            "user_idx": [7, 7, 7],
+            "item_idx": [10, 11, 12],
+            "frequency": [3, 3, 3],
+            "engagement_score": [3.0, 3.0, 3.0],
+            "recency_days": [1, 1, 1],
+            "view_count": [5, 9, 1],
+        }
+    )
+    svc = RecommendationService(_ItemIdxModel(), FeatureStore(df), max_candidates=10)
+    result = svc.recommend(user_id=7, top_k=5)
+    assert result["strategy"] == "popularity"
