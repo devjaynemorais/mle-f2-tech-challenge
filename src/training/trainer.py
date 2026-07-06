@@ -107,7 +107,7 @@ def _train_and_log(train_p: dict, mlflow_p: dict) -> None:
         mlflow.log_metrics({"val_auc": val_auc})
         _save_train_metrics(metrics)
         artifact_dir = save_model(model, active_run.info.run_id)
-        mlflow.log_artifact(str(artifact_dir))
+        mlflow.log_artifact(str(artifact_dir / "model.pkl"), artifact_path="model")
         logger.info("Run MLflow: %s | val_auc=%.4f", active_run.info.run_id, val_auc)
 
 
