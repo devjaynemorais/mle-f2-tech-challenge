@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     model_artifacts_path: str = "models/artifacts"
     model_type: str = "mlp"
 
+    # Production model (MLflow Registry)
+    production_model_name: str = "retailrocket_recommender"
+    production_stage: str = "Production"
+
+    # Serving
+    serving_max_candidates: int = 5000
+
     # Reproducibility
     random_state: int = 42
     test_size: float = 0.2

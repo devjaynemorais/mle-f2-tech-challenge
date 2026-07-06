@@ -1,5 +1,9 @@
 """Testes da API de serving (store, recommender, loader, endpoints)."""
 
+import json
+import pickle
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -55,3 +59,23 @@ def test_store_candidates_are_popularity_sorted():
     assert list(candidates) == [11, 10, 12]
     assert list(store.view_counts(np.array([11, 10, 12]))) == [9, 5, 1]
     assert store.popular_items(2) == [(11, 9), (10, 5)]
+
+
+class _StubModel:
+    def predict_proba(self, X):
+        return np.full(len(X), 0.5)
+
+
+def test_load_from_local_reads_record_and_unpickles(tmp_path: Path):
+    from src.serving.model_loader import _load_from_local
+
+    run_id = "abc123"
+    artifacts_dir = tmp_path / "artifacts"
+    (artifacts_dir / run_id).mkdir(parents=True)
+    with open(artifacts_dir / run_id / "model.pkl", "wb") as f:
+        pickle.dump(_StubModel(), f)
+    record = tmp_path / "promoted_model.json"
+    record.write_text(json.dumps({"run_id": run_id}))
+
+    model = _load_from_local(record, artifacts_dir)
+    assert model.predict_proba(np.zeros((2, 8))).tolist() == [0.5, 0.5]
