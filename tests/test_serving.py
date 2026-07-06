@@ -6,7 +6,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from fastapi.testclient import TestClient
 
+from src.serving import api as api_module
 from src.serving.recommender import RecommendationService
 from src.serving.store import FeatureStore
 
@@ -115,3 +117,39 @@ def test_recommend_scores_are_descending():
     result = svc.recommend(user_id=2, top_k=5)  # user 2 viu 11 → sobra 10
     scores = [r["score"] for r in result["recommendations"]]
     assert scores == sorted(scores, reverse=True)
+
+
+def _client_with_service() -> TestClient:
+    # TestClient(app) sem "with" NÃO dispara o lifespan → sem MLflow/disco.
+    client = TestClient(api_module.app)
+    api_module.state["service"] = _service()
+    return client
+
+
+def test_health_reports_loaded():
+    client = _client_with_service()
+    body = client.get("/health").json()
+    assert body == {"status": "ok", "model_loaded": True, "n_users": 3, "n_items": 3}
+
+
+def test_recommend_endpoint_happy_path():
+    client = _client_with_service()
+    resp = client.get("/recommend", params={"user_id": 1, "top_k": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["strategy"] == "model"
+    assert [r["item_idx"] for r in body["recommendations"]] == [12]
+
+
+def test_recommend_top_k_out_of_range_returns_422():
+    client = _client_with_service()
+    resp_low = client.get("/recommend", params={"user_id": 1, "top_k": 0})
+    resp_high = client.get("/recommend", params={"user_id": 1, "top_k": 101})
+    assert resp_low.status_code == 422
+    assert resp_high.status_code == 422
+
+
+def test_recommend_without_service_returns_503():
+    client = TestClient(api_module.app)
+    api_module.state["service"] = None
+    assert client.get("/recommend", params={"user_id": 1}).status_code == 503
