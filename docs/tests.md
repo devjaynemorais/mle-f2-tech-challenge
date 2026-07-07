@@ -22,9 +22,11 @@ Todos os testes são **sem dependência de disco** — usam DataFrames sintétic
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `tests/test_preprocess.py` | Estratégias de pré-processamento | 11 |
-| `tests/test_feature_engineering.py` | Engenharia de features e split | 24 |
+| `tests/test_feature_engineering.py` | Engenharia de features e split | 23 |
 | `tests/test_smoke.py` | Factory de modelos e MLP | 4 |
-| **Total** | | **38** |
+| `tests/test_registry.py` | Registro e promoção no MLflow Registry | 3 |
+| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService e endpoints | 16 |
+| **Total** | | **57** |
 
 ---
 
@@ -146,6 +148,64 @@ Testa o funcionamento básico da factory de modelos e do MLP.
 | `test_factory_cria_mlp` | `ModelFactory.create("mlp")` retorna instância de `RecommenderBase` |
 | `test_factory_nome_invalido_lanca_erro` | `ValueError` para modelo inexistente |
 | `test_mlp_fit_predict_com_dados_sinteticos` | MLP treina e prediz em arrays sintéticos (100×4) |
+
+---
+
+## `tests/test_registry.py`
+
+Testa `find_best_model_run`, `register_model` e `promote_model` de
+`src/utils/mlflow_tracking.py`. Usa um backend `sqlite:///` em `tmp_path` com
+`monkeypatch` sobre `settings.mlflow_tracking_uri` — sem servidor MLflow.
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_find_best_model_run_escolhe_maior_auc` | Retorna o run com maior `val_auc` dentre vários |
+| `test_find_best_model_run_experimento_inexistente` | `ValueError` quando o experimento não existe |
+| `test_register_e_promote_para_production` | `register_model` + `promote_model` deixam a versão em `Production` |
+
+---
+
+## `tests/test_serving.py`
+
+Testa `FeatureStore`, `model_loader`, `RecommendationService` e os endpoints da
+API. `TestClient(app)` é usado **sem** `with`, então o `lifespan` não dispara
+(sem MLflow/disco); o serviço é injetado em `api.state["service"]`.
+
+### FeatureStore
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_store_user_and_item_counts` | `n_users` / `n_items` corretos |
+| `test_store_user_features_and_seen` | `has_user`, `user_features`, `seen_items` |
+| `test_store_candidates_are_popularity_sorted` | candidatos, `view_counts` e `popular_items` ordenados por popularidade |
+
+### model_loader
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_load_from_local_reads_record_and_unpickles` | fallback local lê `promoted_model.json` e desserializa |
+| `test_registry_reachable_false_for_closed_port` | porta fechada → `False` (falha rápida) |
+| `test_registry_reachable_true_for_non_http_scheme` | `file://` → `True` |
+| `test_registry_reachable_true_when_listening` | socket em escuta → `True` |
+
+### RecommendationService
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_recommend_ranks_and_excludes_seen` | ranqueia por score e exclui itens já vistos |
+| `test_recommend_unknown_user_uses_popularity` | cold start → `strategy: "popularity"` |
+| `test_recommend_scores_are_descending` | scores em ordem decrescente |
+| `test_recommend_orders_multiple_candidates_descending` | ordenação com múltiplos candidatos |
+| `test_recommend_known_user_seen_all_falls_back_to_popularity` | usuário que viu tudo → popularidade |
+
+### Endpoints
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_health_reports_loaded` | `/health` reporta `status/model_loaded/n_users/n_items` |
+| `test_recommend_endpoint_happy_path` | `/recommend` retorna 200 e recomendações do modelo |
+| `test_recommend_top_k_out_of_range_returns_422` | `top_k` fora de `[1,100]` → 422 |
+| `test_recommend_without_service_returns_503` | serviço não carregado → 503 |
 
 ---
 
