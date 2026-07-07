@@ -78,9 +78,12 @@ mlflow:
 		--default-artifact-root ./mlartifacts
 
 # Opção A — API local (usa código e modelo do host diretamente)
+# Porta parametrizável (padrão 8000). Se a 8000 estiver ocupada (ex.: Docker
+# Desktop), rode:  make api API_PORT=8001
+API_PORT ?= 8000
 api:
 	poetry run uvicorn src.serving.api:app \
-		--host 0.0.0.0 --port 8000 --reload
+		--host 0.0.0.0 --port $(API_PORT) --reload
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
 
