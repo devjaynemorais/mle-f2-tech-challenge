@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import pickle
+import socket
 from pathlib import Path
+from urllib.parse import urlparse
 
 from src.config.settings import settings
 from src.models.base import RecommenderBase
@@ -19,6 +21,24 @@ logger = logging.getLogger(__name__)
 
 _ARTIFACT_PATH = "model/model.pkl"
 _RECORD_PATH = Path("models/promoted_model.json")
+_REACHABILITY_TIMEOUT = 2.0
+
+
+def _registry_reachable(uri: str, timeout: float = _REACHABILITY_TIMEOUT) -> bool:
+    """Confirma via socket se o tracking server HTTP está acessível.
+
+    Evita que o cliente MLflow trave por minutos tentando conectar a um
+    servidor ausente. Para stores não-HTTP (file/db), retorna True.
+    """
+    parsed = urlparse(uri)
+    if parsed.scheme not in ("http", "https"):
+        return True
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def load_production_model() -> RecommenderBase:
@@ -35,6 +55,8 @@ def _load_from_registry() -> RecommenderBase:
     import mlflow
     from mlflow.tracking import MlflowClient
 
+    if not _registry_reachable(settings.mlflow_tracking_uri):
+        raise ConnectionError(f"MLflow inacessível em {settings.mlflow_tracking_uri}")
     client = MlflowClient(tracking_uri=settings.mlflow_tracking_uri)
     versions = client.get_latest_versions(
         settings.production_model_name, stages=[settings.production_stage]

@@ -2,6 +2,7 @@
 
 import json
 import pickle
+import socket
 from pathlib import Path
 
 import numpy as np
@@ -177,3 +178,29 @@ def test_recommend_known_user_seen_all_falls_back_to_popularity():
     svc = RecommendationService(_ItemIdxModel(), FeatureStore(df), max_candidates=10)
     result = svc.recommend(user_id=7, top_k=5)
     assert result["strategy"] == "popularity"
+
+
+def test_registry_reachable_false_for_closed_port():
+    from src.serving.model_loader import _registry_reachable
+
+    # porta 9 (discard) quase sempre fechada → deve falhar rápido
+    assert _registry_reachable("http://127.0.0.1:9", timeout=0.5) is False
+
+
+def test_registry_reachable_true_for_non_http_scheme():
+    from src.serving.model_loader import _registry_reachable
+
+    assert _registry_reachable("file:///tmp/mlruns") is True
+
+
+def test_registry_reachable_true_when_listening():
+    from src.serving.model_loader import _registry_reachable
+
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+    try:
+        assert _registry_reachable(f"http://127.0.0.1:{port}", timeout=1.0) is True
+    finally:
+        srv.close()
