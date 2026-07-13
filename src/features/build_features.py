@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from sklearn.model_selection import train_test_split
+
+from src.data.feature_engineering import build_interaction_features, chronological_split
 
 logger = logging.getLogger(__name__)
 
@@ -23,72 +24,67 @@ PROCESSED_DIR = Path("data/processed")
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Cria features a partir dos dados limpos.
+    """Cria features de interação para o RetailRocket dataset.
 
-    TODO: substituir pela lógica do dataset escolhido.
-    Exemplos comuns:
-      - Codificar IDs de usuário/item como inteiros
-      - Normalizar colunas numéricas
-      - Criar features de interação ou históricas
-      - Gerar amostras negativas (para feedback implícito)
+    Args:
+        df: DataFrame limpo com colunas user_idx, item_idx, timestamp, event.
+
+    Returns:
+        DataFrame com features de evento, temporais, usuário e item.
     """
-    # TODO: implementar feature engineering aqui
-    return df
+    return build_interaction_features(df)
 
 
 def split_data(
     df: pd.DataFrame,
     test_size: float,
     val_size: float,
-    random_state: int,
+    random_state: int,  # noqa: ARG001 — mantido para compatibilidade de assinatura
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Divide os dados em treino, validação e teste.
+    """Divide os dados cronologicamente em treino, validação e teste.
 
     Args:
-        df: DataFrame com features e rótulos.
+        df: DataFrame com features e coluna timestamp.
         test_size: Proporção do conjunto de teste.
-        val_size: Proporção do conjunto de validação (sobre o treino+val).
-        random_state: Semente para reprodutibilidade.
+        val_size: Proporção do conjunto de validação.
+        random_state: Ignorado — split é determinístico por timestamp.
 
     Returns:
         Tupla (train_df, val_df, test_df).
     """
-    train_val, test = train_test_split(df, test_size=test_size, random_state=random_state)
-    train, val = train_test_split(train_val, test_size=val_size, random_state=random_state)
-    return train, val, test
+    return chronological_split(df, val_size=val_size, test_size=test_size)
 
 
-def run() -> None:
-    """Executa a etapa de feature engineering.
-
-    Lê os dados de data/interim/, gera as features e salva
-    os splits train/val/test em data/processed/.
-    """
-    params = yaml.safe_load(open(PARAMS_PATH))
-    pre_p = params["preprocess"]
-    test_size: float = pre_p["test_size"]
-    val_size: float = pre_p["val_size"]
-    random_state: int = pre_p["random_state"]
-
+def _save_splits(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame) -> None:
+    """Persiste os splits de treino, validação e teste em data/processed/."""
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-
-    # TODO: ajustar o nome do arquivo conforme a etapa de preprocess
-    interim_file = INTERIM_DIR / "data_clean.parquet"
-
-    if not interim_file.exists():
-        logger.warning("Arquivo interim não encontrado: %s — execute a etapa preprocess primeiro", interim_file)
-        return
-
-    df = pd.read_parquet(interim_file)
-    df = build_features(df)
-
-    train_df, val_df, test_df = split_data(df, test_size, val_size, random_state)
-
     train_df.to_parquet(PROCESSED_DIR / "train.parquet", index=False)
     val_df.to_parquet(PROCESSED_DIR / "val.parquet", index=False)
     test_df.to_parquet(PROCESSED_DIR / "test.parquet", index=False)
+    logger.info(
+        "Splits salvos — treino: %d | val: %d | teste: %d",
+        len(train_df), len(val_df), len(test_df),
+    )
 
-    logger.info("Splits salvos — treino: %d | val: %d | teste: %d", len(train_df), len(val_df), len(test_df))
+
+def run() -> None:
+    """Executa a etapa de feature engineering."""
+    params = yaml.safe_load(open(PARAMS_PATH))
+    pre_p = params["preprocess"]
+    interim_file = INTERIM_DIR / "data_clean.parquet"
+
+    if not interim_file.exists():
+        logger.warning(
+            "Arquivo interim não encontrado: %s — execute preprocess primeiro",
+            interim_file,
+        )
+        return
+
+    df = build_features(pd.read_parquet(interim_file))
+    train_df, val_df, test_df = split_data(
+        df, pre_p["test_size"], pre_p["val_size"], pre_p["random_state"]
+    )
+    _save_splits(train_df, val_df, test_df)
 
 
 if __name__ == "__main__":
