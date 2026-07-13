@@ -21,6 +21,7 @@ services:
     build:
       context: .
       target: runtime
+    image: mle-f2-tech-challenge-runtime
     command: src.training.trainer
     env_file: .env
     environment:
@@ -40,6 +41,7 @@ services:
     build:
       context: .
       target: runtime
+    image: mle-f2-tech-challenge-runtime
     command: src.evaluation.evaluate
     env_file: .env
     environment:
@@ -60,6 +62,7 @@ services:
     build:
       context: .
       target: runtime
+    image: mle-f2-tech-challenge-runtime
     command: src.models.registry
     env_file: .env
     environment:
