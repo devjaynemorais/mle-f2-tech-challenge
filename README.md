@@ -30,7 +30,7 @@ mle-f2-tech-challenge/
 │   ├── processed/        # Splits train/val/test (saída do feature_eng)
 │   └── external/         # Dados externos de referência
 ├── docs/                 # eda.md, preprocessing.md, tests.md, make.md,
-│                         # exploration_doc.md, model_card.md
+│                         # exploration_doc.md, model_card.md, feature_selection.md
 ├── metrics/              # Métricas DVC (JSON) e plots
 ├── models/
 │   ├── artifacts/        # Artefatos do modelo por run MLflow
@@ -214,7 +214,7 @@ Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
 
 ## Pré-Processamento e Features
 
-Detalhes completos em [`docs/preprocessing.md`](docs/preprocessing.md).
+Detalhes completos em [`docs/preprocessing.md`](docs/preprocessing.md). Racional de escolha de cada feature, gaps e candidatas a adicionar em [`docs/feature_selection.md`](docs/feature_selection.md).
 
 **Estágio `preprocess`:** filtra usuários com < 5 interações, encoda `visitorid` → `user_idx` e `itemid` → `item_idx` (base-0, contíguos), ordena por timestamp.
 
