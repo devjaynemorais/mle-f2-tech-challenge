@@ -1,0 +1,311 @@
+{
+  "info": {
+    "name": "RetailRocket Recommender API",
+    "description": "Coleção de exemplos para testar a API de serving do sistema de recomendação (FastAPI). Base URL padrão: http://localhost:8000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /health — Status do serviço (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Estado de carregamento do modelo. Se o modelo não foi carregado (ex: nenhum modelo promovido), status = \"degraded\"."
+      },
+      "response": [
+        {
+          "name": "200 OK - Modelo carregado",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"status\": \"ok\",\n  \"model_loaded\": true,\n  \"n_users\": 12345,\n  \"n_items\": 6789\n}"
+        },
+        {
+          "name": "200 OK - Modelo degradado",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"status\": \"degraded\",\n  \"model_loaded\": false\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET / — Informações da API (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/",
+          "host": ["{{base_url}}"],
+          "path": [""]
+        },
+        "description": "Retorna nome e versão do serviço."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"service\": \"RetailRocket Recommender API\",\n  \"version\": \"0.1.0\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET /recommend — Usuário conhecido → recomendação pelo modelo (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=5",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" },
+            { "key": "top_k", "value": "5" }
+          ]
+        },
+        "description": "Recomendação para um usuário conhecido (tem histórico em data/processed/). Resposta traz strategy: \"model\" e score é a probabilidade prevista pelo modelo."
+      },
+      "response": [
+        {
+          "name": "200 OK - recomendações do modelo",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=5",
+              "host": ["{{base_url}}"],
+              "path": ["recommend"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" },
+                { "key": "top_k", "value": "5" }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"user_id\": 1,\n  \"strategy\": \"model\",\n  \"count\": 5,\n  \"recommendations\": [\n    { \"item_idx\": 452, \"score\": 0.9821 },\n    { \"item_idx\": 118, \"score\": 0.9603 },\n    { \"item_idx\": 987, \"score\": 0.9412 }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET /recommend — Sem informar top_k → usa padrão de 10 (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id={{user_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" }
+          ]
+        },
+        "description": "Sem top_k informado, a API usa o padrão (10)."
+      },
+      "response": []
+    },
+    {
+      "name": "GET /recommend — Usuário novo (cold start) → recomendação por popularidade (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id=999999999&top_k=5",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "999999999" },
+            { "key": "top_k", "value": "5" }
+          ]
+        },
+        "description": "user_idx inexistente no dataset → cold start → estratégia popularity. score é o view_count do item (não probabilidade)."
+      },
+      "response": [
+        {
+          "name": "200 OK - fallback de popularidade",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recommend?user_id=999999999&top_k=5",
+              "host": ["{{base_url}}"],
+              "path": ["recommend"],
+              "query": [
+                { "key": "user_id", "value": "999999999" },
+                { "key": "top_k", "value": "5" }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"user_id\": 999999999,\n  \"strategy\": \"popularity\",\n  \"count\": 5,\n  \"recommendations\": [\n    { \"item_idx\": 1526, \"score\": 1388.0 },\n    { \"item_idx\": 1222, \"score\": 908.0 },\n    { \"item_idx\": 3659, \"score\": 882.0 },\n    { \"item_idx\": 1296, \"score\": 753.0 },\n    { \"item_idx\": 391, \"score\": 735.0 }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET /recommend — top_k=0 abaixo do mínimo → erro de validação (422)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=0",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" },
+            { "key": "top_k", "value": "0" }
+          ]
+        },
+        "description": "top_k fora do range permitido (1–100) → 422. Aqui testa o limite inferior (top_k=0, viola ge=1)."
+      },
+      "response": [
+        {
+          "name": "422 Unprocessable Entity - limite inferior",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=0",
+              "host": ["{{base_url}}"],
+              "path": ["recommend"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" },
+                { "key": "top_k", "value": "0" }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"detail\": [\n    {\n      \"type\": \"greater_than_equal\",\n      \"loc\": [\"query\", \"top_k\"],\n      \"msg\": \"Input should be greater than or equal to 1\",\n      \"input\": \"0\",\n      \"ctx\": { \"ge\": 1 }\n    }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET /recommend — top_k=500 acima do máximo → erro de validação (422)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=500",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" },
+            { "key": "top_k", "value": "500" }
+          ]
+        },
+        "description": "top_k > 100 deve retornar 422 (Unprocessable Entity) pela validação do FastAPI (Query(le=100)). Complementa o teste de limite inferior."
+      },
+      "response": [
+        {
+          "name": "422 Unprocessable Entity - limite superior",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=500",
+              "host": ["{{base_url}}"],
+              "path": ["recommend"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" },
+                { "key": "top_k", "value": "500" }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"detail\": [\n    {\n      \"type\": \"less_than_equal\",\n      \"loc\": [\"query\", \"top_k\"],\n      \"msg\": \"Input should be less than or equal to 100\",\n      \"input\": \"500\"\n    }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "GET /recommend — Modelo não carregado → serviço indisponível (503)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=5",
+          "host": ["{{base_url}}"],
+          "path": ["recommend"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" },
+            { "key": "top_k", "value": "5" }
+          ]
+        },
+        "description": "Estado de indisponibilidade. Se a API subiu mas o modelo/feature store não carregou no startup (/health reporta \"degraded\", ex.: data/processed/ ausente), qualquer chamada a /recommend retorna 503 Service Unavailable. Para reproduzir: suba a API sem rodar o pipeline antes (make setup), ou remova temporariamente data/processed/."
+      },
+      "response": [
+        {
+          "name": "503 Service Unavailable - modelo não carregado",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recommend?user_id={{user_id}}&top_k=5",
+              "host": ["{{base_url}}"],
+              "path": ["recommend"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" },
+                { "key": "top_k", "value": "5" }
+              ]
+            }
+          },
+          "status": "Service Unavailable",
+          "code": 503,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"detail\": \"Modelo não carregado.\"\n}"
+        }
+      ]
+    }
+  ]
+}
