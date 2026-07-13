@@ -17,7 +17,7 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 | Linting / formatação | ruff + mypy + pre-commit |
 | Containerização | Docker multi-stage + docker-compose |
 | Configuração | Pydantic Settings + `params.yaml` + `.env` |
-| Testes | pytest + pytest-cov (38 testes, 100% sem I/O de disco) |
+| Testes | pytest + pytest-cov (57 testes, 100% sem I/O de disco) |
 
 ## Estrutura do Projeto
 
@@ -42,13 +42,15 @@ mle-f2-tech-challenge/
 │   ├── data/             # preprocess.py, preprocessor.py,
 │   │                     # feature_engineering.py, dataset.py, make_dataset.py
 │   ├── features/         # build_features.py (estágio DVC feature_eng)
-│   ├── models/           # factory.py, base.py, mlp.py, baselines.py
+│   ├── models/           # factory.py, base.py, mlp.py, baselines.py, registry.py
 │   ├── training/         # trainer.py
 │   ├── evaluation/       # evaluate.py
+│   ├── serving/          # api.py, store.py, model_loader.py, recommender.py
 │   └── utils/            # seed.py, eda.py, plots.py, mlflow_tracking.py,
 │                         # logging_config.py
-├── tests/                # test_preprocess.py, test_feature_engineering.py, test_smoke.py
-├── dvc.yaml              # Definição dos 4 estágios do pipeline
+├── tests/                # test_preprocess.py, test_feature_engineering.py,
+│                         # test_smoke.py, test_registry.py, test_serving.py
+├── dvc.yaml              # Definição dos 5 estágios do pipeline
 ├── params.yaml           # Hiperparâmetros versionados
 ├── pyproject.toml        # Dependências e configuração de ferramentas
 ├── poetry.lock
@@ -71,9 +73,17 @@ cp .env.example .env
 dvc pull
 # ou: python scripts/download_dataset.py  (requer KAGGLE_USERNAME e KAGGLE_KEY no .env)
 
-# 4. Validar ambiente e rodar pipeline completo
+# 4. Subir o MLflow (o pipeline registra runs em http://localhost:5000).
+#    Rode em um terminal separado e deixe aberto:
+make mlflow
+# Alternativa sem servidor local: use Docker → make compose-pipeline (sobe o MLflow por você)
+
+# 5. Validar ambiente e rodar pipeline completo (em outro terminal)
 make setup
 ```
+
+> **Nota:** o estágio `train` falha com `WinError 10061 / Connection refused` se o
+> MLflow não estiver rodando. Deixe `make mlflow` ativo antes de `make setup`.
 
 ## Pipeline DVC
 
@@ -84,6 +94,7 @@ data/raw/events.csv
         ▼  feature_eng  →  data/processed/{train,val,test}.parquet
         ▼  train        →  models/artifacts/ + metrics/train_metrics.json
         ▼  evaluate     →  metrics/eval_metrics.json + metrics/plots/
+        ▼  promote      →  models/promoted_model.json (Registry: Staging → Production)
 ```
 
 Reproduzir do zero:
@@ -108,7 +119,7 @@ make env          # primeira vez, ou após alterar pyproject.toml
 make validate-env # checar variáveis de ambiente e dependências
 make lint         # ruff check + verificação de formatação
 make format       # corrigir lint e formatação automaticamente
-make test         # pytest tests/ -v  (38 testes)
+make test         # pytest tests/ -v  (57 testes)
 make test-cov     # pytest com relatório HTML em htmlcov/
 ```
 
@@ -119,10 +130,48 @@ make mlflow   # MLflow UI em http://localhost:5000
 make api      # FastAPI em http://localhost:8000 com hot-reload
 ```
 
-Testar a API:
+> **Portas ocupadas?** Ambos os alvos aceitam override de porta. Se a 5000 estiver
+> em uso, rode `make mlflow MLFLOW_PORT=5001` (e ajuste `MLFLOW_TRACKING_URI` no
+> `.env`). Se a 8000 estiver em uso (ex.: Docker Desktop), rode
+> `make api API_PORT=8001` e teste em `http://localhost:8001`.
+
+## API de Serving
+
+FastAPI em `src/serving/`, servida por `uvicorn src.serving.api:app`. No startup,
+carrega o modelo de produção e um feature store em memória (uma única vez).
+
+**Carregamento do modelo** (`model_loader.py`): tenta o MLflow Registry
+(`models:/retailrocket_recommender/Production`) primeiro; se o servidor MLflow
+estiver inacessível, cai para o artefato local (`models/promoted_model.json` →
+`models/artifacts/<run_id>/model.pkl`). Um pré-check de TCP (2 s) evita travar
+quando não há servidor.
+
+**Feature store** (`store.py`): lê `data/processed/` e monta lookups de features
+por usuário, `view_count` por item, itens já vistos e ranking de popularidade.
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /` | Metadados do serviço |
+| `GET /health` | `{status, model_loaded, n_users, n_items}` |
+| `GET /recommend?user_id=X&top_k=10` | Top-K itens rankeados (`top_k` entre 1 e 100) |
+
+Para um usuário conhecido, pontua os itens candidatos não vistos com o modelo e
+ranqueia (`strategy: "model"`). Para um usuário desconhecido (cold start), retorna
+os itens mais populares (`strategy: "popularity"`).
 
 ```bash
-curl "http://localhost:8000/recommend?user_id=12345&top_k=10"
+curl "http://localhost:8000/recommend?user_id=11883&top_k=5"
+```
+
+```json
+{
+  "user_id": 11883,
+  "strategy": "model",
+  "count": 5,
+  "recommendations": [
+    { "item_idx": 18205, "score": 0.066388 }
+  ]
+}
 ```
 
 ## Docker
@@ -209,11 +258,14 @@ Detalhes em [`docs/tests.md`](docs/tests.md).
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `tests/test_preprocess.py` | DefaultPreprocessor e RetailRocketPreprocessor | 11 |
-| `tests/test_feature_engineering.py` | Todas as funções de feature engineering e split | 24 |
+| `tests/test_feature_engineering.py` | Todas as funções de feature engineering e split | 23 |
 | `tests/test_smoke.py` | ModelFactory e MLP (fit + predict) | 4 |
-| **Total** | | **38** |
+| `tests/test_registry.py` | Registro e promoção no MLflow Registry | 3 |
+| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService e endpoints | 16 |
+| **Total** | | **57** |
 
-Todos os testes usam DataFrames sintéticos em memória — sem leitura de `data/`.
+Todos os testes usam dados sintéticos em memória — sem leitura de `data/` nem
+dependência de servidor MLflow.
 
 ## Parâmetros
 

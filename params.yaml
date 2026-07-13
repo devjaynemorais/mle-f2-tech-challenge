@@ -19,3 +19,9 @@ train:
 mlflow:
   experiment_name: recommendation_system
   run_name: baseline
+
+registry:
+  model_name: retailrocket_recommender
+  metric: val_auc      # métrica usada para escolher o melhor run
+  ascending: false     # false = maior é melhor (AUC)
+  stage: Production     # estágio final da promoção

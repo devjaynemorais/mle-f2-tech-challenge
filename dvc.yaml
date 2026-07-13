@@ -47,3 +47,17 @@ stages:
     plots:
       - metrics/plots/:
           cache: false
+
+  promote:
+    cmd: python -m src.models.registry
+    deps:
+      - src/models/registry.py
+      - src/utils/mlflow_tracking.py
+      - metrics/train_metrics.json
+      - metrics/eval_metrics.json
+    params:
+      - registry
+      - mlflow
+    outs:
+      - models/promoted_model.json:
+          cache: false

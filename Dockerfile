@@ -36,15 +36,26 @@ CMD ["src.training.trainer"]
 # Stage 3: mlflow-server — experiment tracking server
 FROM python:3.11-slim AS mlflow-server
 
-RUN pip install --no-cache-dir mlflow==2.12.0
+# Deve casar com a versão do cliente (poetry.lock) — o cliente 3.x resolve
+# URIs runs:/ via a API "logged-models", ausente em servidores 2.x.
+RUN pip install --no-cache-dir mlflow==3.13.0
 
 EXPOSE 5000
 
+# --allowed-hosts: MLflow 3.x valida o header Host (proteção anti DNS-rebinding).
+# Na rede do compose o cliente acessa via 'mlflow:5000'; liberamos todos os hosts
+# por ser um ambiente local. Para deploy público, restrinja a hosts específicos.
+# --serve-artifacts + --artifacts-destination: os clientes (containers de
+# train/evaluate/promote) sobem artefatos PELO servidor (proxy), pois não
+# compartilham o filesystem /mlartifacts. Sem isso, log_artifact grava num
+# caminho local inexistente no container cliente e nada chega ao servidor.
 CMD ["mlflow", "server", \
      "--host", "0.0.0.0", \
      "--port", "5000", \
+     "--allowed-hosts", "*", \
      "--backend-store-uri", "sqlite:////mlartifacts/mlflow.db", \
-     "--default-artifact-root", "/mlartifacts"]
+     "--serve-artifacts", \
+     "--artifacts-destination", "/mlartifacts"]
 
 
 # Stage 4: api — FastAPI serving endpoint

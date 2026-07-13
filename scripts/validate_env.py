@@ -3,6 +3,11 @@
 import importlib
 import os
 import sys
+from pathlib import Path
+
+# Running this file by path puts scripts/ on sys.path, not the repo root,
+# so `import src` fails. Add the repo root explicitly.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 REQUIRED_PACKAGES = [
     "torch",
