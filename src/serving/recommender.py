@@ -10,6 +10,7 @@ from datetime import datetime
 
 import numpy as np
 
+from src.data.feature_contract import FEATURE_COLS
 from src.models.base import RecommenderBase
 from src.serving.store import FeatureStore
 
@@ -58,22 +59,21 @@ class RecommendationService:
         ]
 
     def _build_matrix(self, user_id: int, items: np.ndarray) -> np.ndarray:
-        """Monta a matriz de features na ordem esperada pelo modelo."""
+        """Monta a matriz na ordem do contrato de features (FR-007)."""
         freq, eng, rec = self.store.user_features(user_id)
         now = datetime.now()
         n = items.shape[0]
-        return np.column_stack(
-            [
-                np.full(n, user_id),
-                items,
-                np.full(n, now.hour),
-                np.full(n, now.weekday()),
-                np.full(n, freq),
-                np.full(n, eng),
-                np.full(n, rec),
-                self.store.view_counts(items),
-            ]
-        ).astype("float32")
+        cols = {
+            "user_idx": np.full(n, user_id),
+            "item_idx": items,
+            "hour": np.full(n, now.hour),
+            "day_of_week": np.full(n, now.weekday()),
+            "frequency": np.full(n, freq),
+            "engagement_score": np.full(n, eng),
+            "recency_days": np.full(n, rec),
+            "view_count": self.store.view_counts(items),
+        }
+        return np.column_stack([cols[c] for c in FEATURE_COLS]).astype("float32")
 
     def _popularity_recommend(self, top_k: int) -> list[dict]:
         """Retorna os itens mais populares como fallback."""

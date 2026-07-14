@@ -1,7 +1,9 @@
 """Feature store em memória para a API de serving.
 
-Constrói tabelas de lookup (features por usuário, contagem de views por item,
-itens já vistos e ranking de popularidade) a partir de data/processed/.
+Constrói tabelas de lookup a partir dos EVENTOS de data/processed/ —
+o estado corrente do usuário (frequency, engagement, recency) e do item
+(view_count) é agregado aqui, com a mesma semântica das features causais
+do treino, avaliadas "no fim do histórico" (FR-007).
 """
 
 from __future__ import annotations
@@ -11,14 +13,22 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_USER_COLS = ["frequency", "engagement_score", "recency_days"]
+from src.data.feature_contract import NO_HISTORY_RECENCY
+
 _SPLIT_FILES = ("train.parquet", "val.parquet", "test.parquet")
+_SECONDS_PER_DAY = 86400.0
 
 
 class FeatureStore:
-    """Tabelas de lookup para pontuar candidatos no serving."""
+    """Tabelas de lookup para pontuar candidatos no serving.
+
+    Args:
+        interactions: Eventos com colunas user_idx, item_idx, event,
+            weight e timestamp (splits de data/processed/ concatenados).
+    """
 
     def __init__(self, interactions: pd.DataFrame) -> None:
+        self._reference_ts = interactions["timestamp"].max()
         self._users = self._build_users(interactions)
         self._item_vc = self._build_item_views(interactions)
         self._seen = self._build_seen(interactions)
@@ -41,16 +51,31 @@ class FeatureStore:
 
     def _build_users(self, df: pd.DataFrame) -> dict[int, tuple[float, float, float]]:
         """Mapeia user_idx → (frequency, engagement_score, recency_days)."""
-        grouped = df.groupby("user_idx")[_USER_COLS].first()
+        agg = df.groupby("user_idx").agg(
+            frequency=("user_idx", "count"),
+            engagement_score=("weight", "sum"),
+            last_ts=("timestamp", "max"),
+        )
+        recency = (
+            (self._reference_ts - agg["last_ts"]).dt.total_seconds()
+            / _SECONDS_PER_DAY
+        ).fillna(NO_HISTORY_RECENCY)
         return {
-            int(u): (float(r[0]), float(r[1]), float(r[2]))
-            for u, r in zip(grouped.index, grouped.to_numpy(), strict=False)
+            int(u): (float(f), float(e), float(r))
+            for u, f, e, r in zip(
+                agg.index,
+                agg["frequency"],
+                agg["engagement_score"],
+                recency,
+                strict=True,
+            )
         }
 
     def _build_item_views(self, df: pd.DataFrame) -> dict[int, int]:
-        """Mapeia item_idx → view_count."""
-        grouped = df.groupby("item_idx")["view_count"].first()
-        return {int(i): int(v) for i, v in grouped.items()}
+        """Mapeia item_idx → total de views (0 para itens sem view)."""
+        views = df.loc[df["event"] == "view"].groupby("item_idx").size()
+        all_items = df["item_idx"].unique()
+        return {int(i): int(views.get(i, 0)) for i in all_items}
 
     def _build_seen(self, df: pd.DataFrame) -> dict[int, set[int]]:
         """Mapeia user_idx → conjunto de item_idx já vistos."""

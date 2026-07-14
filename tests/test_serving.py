@@ -14,33 +14,38 @@ from src.serving.recommender import RecommendationService
 from src.serving.store import FeatureStore
 
 
-def _sample_interactions() -> pd.DataFrame:
-    # user 1 viewed items 10, 11; user 2 viewed item 11. view_counts: 11>10>12.
+def _events(rows: list[tuple[int, int, str, str]]) -> pd.DataFrame:
+    """Monta eventos (user, item, event, timestamp) com pesos padrão."""
+    weights = {"view": 1, "addtocart": 3, "transaction": 5}
     return pd.DataFrame(
         {
-            "user_idx": [1, 1, 2],
-            "item_idx": [10, 11, 11],
-            "frequency": [2, 2, 1],
-            "engagement_score": [4.0, 4.0, 1.0],
-            "recency_days": [3, 3, 5],
-            "view_count": [5, 9, 9],
+            "user_idx": [r[0] for r in rows],
+            "item_idx": [r[1] for r in rows],
+            "event": [r[2] for r in rows],
+            "weight": [weights[r[2]] for r in rows],
+            "timestamp": pd.to_datetime([r[3] for r in rows]),
         }
+    )
+
+
+def _sample_interactions() -> pd.DataFrame:
+    # user 1 viu 10, 10, 11; user 2 viu 11, 11. view_counts: 11=3 > 10=2.
+    return _events(
+        [
+            (1, 10, "view", "2015-05-01"),
+            (1, 10, "view", "2015-05-02"),
+            (1, 11, "view", "2015-05-03"),
+            (2, 11, "view", "2015-05-04"),
+            (2, 11, "view", "2015-05-05"),
+        ]
     )
 
 
 def _store_with_item12() -> FeatureStore:
-    df = _sample_interactions()
-    extra = pd.DataFrame(
-        {
-            "user_idx": [3],
-            "item_idx": [12],
-            "frequency": [1],
-            "engagement_score": [1.0],
-            "recency_days": [1],
-            "view_count": [1],
-        }
+    extra = _events([(3, 12, "view", "2015-05-06")])
+    return FeatureStore(
+        pd.concat([_sample_interactions(), extra], ignore_index=True)
     )
-    return FeatureStore(pd.concat([df, extra], ignore_index=True))
 
 
 def test_store_user_and_item_counts():
@@ -53,7 +58,8 @@ def test_store_user_features_and_seen():
     store = _store_with_item12()
     assert store.has_user(1) is True
     assert store.has_user(99) is False
-    assert store.user_features(1) == (2.0, 4.0, 3.0)
+    # user 1: 3 eventos view (peso 1), último em 05-03; referência = 05-06
+    assert store.user_features(1) == (3.0, 3.0, 3.0)
     assert store.seen_items(1) == {10, 11}
 
 
@@ -61,8 +67,8 @@ def test_store_candidates_are_popularity_sorted():
     store = _store_with_item12()
     candidates = store.candidate_items(max_candidates=10)
     assert list(candidates) == [11, 10, 12]
-    assert list(store.view_counts(np.array([11, 10, 12]))) == [9, 5, 1]
-    assert store.popular_items(2) == [(11, 9), (10, 5)]
+    assert list(store.view_counts(np.array([11, 10, 12]))) == [3, 2, 1]
+    assert store.popular_items(2) == [(11, 3), (10, 2)]
 
 
 class _StubModel:
@@ -86,7 +92,7 @@ def test_load_from_local_reads_record_and_unpickles(tmp_path: Path):
 
 
 class _ItemIdxModel:
-    """Modelo fake: score = item_idx (coluna 1), determinístico."""
+    """Modelo fake: score = item_idx (coluna 1 do contrato), determinístico."""
 
     def predict_proba(self, X):
         return X[:, 1].astype(float)
@@ -113,7 +119,7 @@ def test_recommend_unknown_user_uses_popularity():
 
 
 def test_recommend_scores_are_descending():
-    store = FeatureStore(_sample_interactions())  # itens 10, 11 (nenhum item 12)
+    store = FeatureStore(_sample_interactions())  # itens 10, 11 (sem item 12)
     svc = RecommendationService(_ItemIdxModel(), store, max_candidates=10)
     result = svc.recommend(user_id=2, top_k=5)  # user 2 viu 11 → sobra 10
     scores = [r["score"] for r in result["recommendations"]]
@@ -165,15 +171,12 @@ def test_recommend_orders_multiple_candidates_descending():
 
 
 def test_recommend_known_user_seen_all_falls_back_to_popularity():
-    df = pd.DataFrame(
-        {
-            "user_idx": [7, 7, 7],
-            "item_idx": [10, 11, 12],
-            "frequency": [3, 3, 3],
-            "engagement_score": [3.0, 3.0, 3.0],
-            "recency_days": [1, 1, 1],
-            "view_count": [5, 9, 1],
-        }
+    df = _events(
+        [
+            (7, 10, "view", "2015-05-01"),
+            (7, 11, "view", "2015-05-02"),
+            (7, 12, "view", "2015-05-03"),
+        ]
     )
     svc = RecommendationService(_ItemIdxModel(), FeatureStore(df), max_candidates=10)
     result = svc.recommend(user_id=7, top_k=5)
