@@ -21,11 +21,16 @@ os cinco pilares do projeto: **pipeline**, **testes**, **ambiente**, **MLflow** 
         │                               ▼
         │  ┌───────────┐   ┌────────────┐   ┌────────┐   ┌──────────┐   ┌─────────┐
         └─▶│preprocess │──▶│feature_eng │──▶│ train  │──▶│ evaluate │──▶│ promote │
-           └───────────┘   └────────────┘   └────────┘   └──────────┘   └─────────┘
-                │                │              │              │             │
-        data/interim/    data/processed/   models/       metrics/       models/
-        data_clean       train/val/test    artifacts/    eval_metrics   promoted_
-        .parquet         .parquet          + MLflow run  + plots         model.json
+           └───────────┘ ┌▶└────────────┘   └────────┘   └──────────┘   └─────────┘
+ data/raw/               │      │              │              │             │
+ item_properties_*.csv   │ data/processed/  models/       metrics/       models/
+        │  ┌───────────┐ │ train/val/test   artifacts/    eval_metrics   promoted_
+        └─▶│ content   │─┘ .parquet         + MLflow run  + plots         model.json
+           └───────────┘
+                │
+        data/content/
+        item_categories
+        .parquet
                                                │              │             │
                                                ▼              ▼             ▼
                                         ┌──────────────────────────────────────┐
@@ -59,10 +64,11 @@ Make dedicados (`make preprocess`, `make feature-eng`, `make train`,
 
 | Estágio | Comando | Entradas (`deps`) | Saídas (`outs`/`metrics`) | Params |
 |---------|---------|-------------------|---------------------------|--------|
-| `preprocess`  | `python -m src.data.preprocess` | `src/data/preprocess.py`, `data/raw/` | `data/interim/` | `preprocess` |
-| `feature_eng` | `python -m src.features.build_features` | `src/features/build_features.py`, `data/interim/` | `data/processed/` | `feature_eng` |
-| `train`       | `python -m src.training.trainer` | `src/training/trainer.py`, `src/models/`, `data/processed/` | `models/artifacts/`, `metrics/train_metrics.json` | `train` |
-| `evaluate`    | `python -m src.evaluation.evaluate` | `src/evaluation/evaluate.py`, `models/artifacts/`, `data/processed/` | `metrics/eval_metrics.json`, `metrics/plots/` | `train` |
+| `preprocess`  | `python -m src.data.preprocess` | `src/data/preprocess{,or}.py`, `data/raw/events.csv` | `data/interim/` | `preprocess` |
+| `content`     | `python -m src.data.content_etl` | `src/data/content_etl.py`, `data/raw/item_properties_part*.csv` | `data/content/` | — |
+| `feature_eng` | `python -m src.features.build_features` | `src/features/build_features.py`, `src/data/feature_engineering.py`, `data/interim/`, `data/content/` | `data/processed/` | `preprocess`, `feature_eng` |
+| `train`       | `python -m src.training.trainer` | `src/training/trainer.py`, `src/models/`, `src/data/labeling.py`, `data/processed/` | `models/artifacts/`, `metrics/train_metrics.json` | `train`, `labeling`, `eval` |
+| `evaluate`    | `python -m src.evaluation.evaluate` | `src/evaluation/*.py`, `src/data/labeling.py`, `models/artifacts/`, `data/processed/` | `metrics/eval_metrics.json`, `metrics/plots/` | `labeling`, `eval` |
 | `promote`     | `python -m src.models.registry` | `src/models/registry.py`, `src/utils/mlflow_tracking.py`, `metrics/*.json` | `models/promoted_model.json` | `registry`, `mlflow` |
 
 ### 1.1 `preprocess` — dados brutos → intermediários limpos
@@ -83,20 +89,28 @@ Fonte: [`src/data/preprocess.py`](../src/data/preprocess.py) +
 Se `data/raw/events.csv` não existir, o estágio loga um aviso e retorna sem erro
 (permite `dvc repro` parcial em clones sem os dados brutos).
 
-### 1.2 `feature_eng` — intermediário → features + splits
+### 1.2 `content` + `feature_eng` — conteúdo e features causais + splits
 
-Fonte: [`src/features/build_features.py`](../src/features/build_features.py) +
+Fontes: [`src/data/content_etl.py`](../src/data/content_etl.py),
+[`src/features/build_features.py`](../src/features/build_features.py) e
 [`src/data/feature_engineering.py`](../src/data/feature_engineering.py). Todas as
 funções de feature são **puras** (`DataFrame → DataFrame`, sem I/O).
 
-`build_interaction_features` compõe quatro grupos de features por linha de evento:
+O estágio `content` lê `item_properties_part*.csv` em chunks, filtra
+`property == "categoryid"` e mantém o valor mais recente por item →
+`data/content/item_categories.parquet` (usado pelo embedding de categoria
+do NCF — cold-start de conteúdo).
 
-| Grupo | Colunas | Regra |
-|-------|---------|-------|
-| Evento | `weight` | `view=1`, `addtocart=3`, `transaction=5` (`EVENT_WEIGHTS`) |
+`build_causal_features` compõe quatro grupos de features **causais (as-of)**
+por linha de evento — cada linha enxerga apenas eventos ANTERIORES a ela
+(FR-003; elimina o vazamento temporal da agregação global antiga):
+
+| Grupo | Colunas | Regra (as-of) |
+|-------|---------|---------------|
+| Evento | `weight` | `view=1`, `addtocart=3`, `transaction=5` (`EVENT_WEIGHTS`, definido em `src/data/labeling.py`) |
 | Temporal | `hour`, `day_of_week` | extraídas do `timestamp` (0=segunda … 6=domingo) |
-| Usuário | `frequency`, `recency_days`, `engagement_score` | contagem de eventos; dias desde o último evento até `max(timestamp)+1d` (normalizado por dia); soma dos `weight` |
-| Item | `view_count`, `popularity_tier` | nº de eventos `view`; tier por quantis: `>p90`=`top_tier`, `>p50`=`mid_tier`, senão `long_tail` |
+| Usuário | `frequency`, `engagement_score`, `recency_days` | nº de eventos anteriores; soma dos pesos anteriores; dias desde o evento anterior (−1 = primeiro evento) |
+| Item | `view_count`, `cat_idx` | views anteriores do item; categoria contígua (−1 = sem categoria) |
 
 `chronological_split` ordena por `timestamp` e corta por posição (sem embaralhar),
 evitando *data leakage* temporal:
@@ -111,36 +125,43 @@ test  = [n - n_test :]               (~20%)
 assinatura mas ignorado — o split é determinístico por tempo. Saídas:
 `data/processed/{train,val,test}.parquet`.
 
-### 1.3 `train` — treina o modelo + loga no MLflow
+### 1.3 `train` — labeling + NCF + loga no MLflow
 
-Fonte: [`src/training/trainer.py`](../src/training/trainer.py).
+Fonte: [`src/training/trainer.py`](../src/training/trainer.py) +
+[`src/data/labeling.py`](../src/data/labeling.py).
 
-- **Features do modelo** (`FEATURE_COLS`, 8 colunas, nesta ordem):
-  `user_idx, item_idx, hour, day_of_week, frequency, engagement_score, recency_days, view_count`.
-- **Rótulo binário**: `weight >= 3 → 1` (addtocart/transaction) vs `0` (view).
-  Ou seja, o modelo prevê "interação de alta intenção".
-- **Modelo** criado por `ModelFactory.create(model_type, …)` com os
-  hiperparâmetros de `params.train` (`model_type`, `epochs`, `batch_size`,
-  `learning_rate`, `early_stopping_patience`, `random_state`). Padrão: `mlp`.
-- **Fluxo dentro de `mlflow.start_run`**: `log_params(train_p)` → `fit` →
-  `val_auc = roc_auc_score(y_val, predict_proba(X_val))` → `log_metrics` →
-  salva `models/artifacts/<run_id>/model.pkl` (pickle) → `log_artifact` no path
-  `model/` do run.
-- Escreve `metrics/train_metrics.json` (`cache: false`, rastreado pelo DVC).
+- **Contrato de features** (`src/data/feature_contract.py`, 8 colunas):
+  `user_idx, item_idx | hour, day_of_week, frequency, engagement_score, recency_days, view_count`
+  — fonte única para treino, avaliação e serving (FR-007).
+- **Rótulo (FR-001/002, definição única em `labeling.py`)**: positivo =
+  `addtocart`/`transaction`; negativo = pares (user, item) **não interagidos**,
+  amostrados por popularidade^0.75 na razão 4:1, com `view_count` *as-of* o
+  timestamp do positivo. Val é rotulada com estatísticas do TREINO.
+- **Modelo** criado por `ModelFactory.create` com `params.train`. Padrão:
+  `ncf` — embeddings de usuário/item/categoria (último índice = "unknown",
+  D4) ⊕ contínuas escaladas → MLP → logit.
+- **Early stopping por val-AUC** (FR-010), restaurando o melhor estado.
+- Loga `val_auc` **e** `val_ndcg_at_20` (métrica de promoção); salva
+  `models/artifacts/<run_id>/model.pkl` **auto-contido** (rede + scaler +
+  vocabulários/máscaras — D5) e `metrics/train_metrics.json`.
 
-### 1.4 `evaluate` — métricas no conjunto de teste
+### 1.4 `evaluate` — classificação + ranking Top-K no teste
 
-Fonte: [`src/evaluation/evaluate.py`](../src/evaluation/evaluate.py).
+Fonte: [`src/evaluation/evaluate.py`](../src/evaluation/evaluate.py) +
+[`ranking.py`](../src/evaluation/ranking.py) / [`scorers.py`](../src/evaluation/scorers.py).
 
-- `load_model()` pega o `model.pkl` **mais recente por mtime** em
-  `models/artifacts/`.
-- Reusa `FEATURE_COLS` e a mesma regra de rótulo do treino sobre `test.parquet`.
-- `compute_metrics` (threshold `0.5`) produz **5 métricas** (o TC2 exige ≥ 4):
-  `roc_auc`, `average_precision`, `f1`, `precision`, `recall`.
-- `_save_plots` grava `metrics/plots/roc_curve.json` e `pr_curve.json`
-  (pontos das curvas ROC e Precision-Recall, formato de plot do DVC).
-- Loga as métricas num run MLflow separado (`run_name="evaluate"`) e persiste
-  `metrics/eval_metrics.json`.
+- **Classificação** sobre o teste rotulado (positivos reais + negativos
+  amostrados — a mesma tarefa do treino): `roc_auc`, `average_precision`,
+  `f1`, `precision`, `recall` (threshold `0.5`).
+- **Ranking Top-K por usuário** (FR-005/005a/006, D3): todos os positivos
+  de teste do usuário + 100 negativos não vistos numa mesma lista;
+  NDCG/Recall/Precision/HitRate @{10,20}; relevância **forte**
+  (addtocart/transaction) e **ampla** (inclui view, teto de 20 positivos);
+  modelo vs. **baseline de popularidade** nos MESMOS candidatos; métricas
+  segmentadas **warm** (usuário no treino) vs. **cold** (FR-011).
+- `_save_plots` grava `metrics/plots/{roc,pr}_curve.json`; métricas em
+  `metrics/eval_metrics.json` (aninhado) e achatadas num run MLflow
+  (`run_name="evaluate"`).
 
 ### 1.5 `promote` — Model Registry (Staging → Production)
 
@@ -148,8 +169,9 @@ Fonte: [`src/models/registry.py`](../src/models/registry.py) +
 [`src/utils/mlflow_tracking.py`](../src/utils/mlflow_tracking.py).
 
 1. `find_best_model_run(experiment, metric, ascending)` busca (via
-   `MlflowClient.search_runs`) o melhor run por `val_auc` **que tenha o artefato**
-   `model/model.pkl` registrado — descartando runs de avaliação sem modelo.
+   `MlflowClient.search_runs`) o melhor run por `val_ndcg_at_20` (métrica de
+   VALIDAÇÃO de ranking — FR-010) **que tenha o artefato** `model/model.pkl`
+   registrado — descartando runs de avaliação sem modelo.
 2. `register_model` cria o modelo registrado (idempotente) e uma nova versão a
    partir de `runs:/<run_id>/model/model.pkl`, transicionando para `Staging`
    (`archive_existing_versions=True`).
@@ -159,13 +181,7 @@ Fonte: [`src/models/registry.py`](../src/models/registry.py) +
    metric, value}` — o vínculo local que a API usa como *fallback* offline.
 
 Parâmetros em `params.registry`: `model_name=retailrocket_recommender`,
-`metric=val_auc`, `ascending=false`, `stage=Production`.
-
-> **Nota de honestidade sobre as métricas commitadas.** `metrics/train_metrics.json`
-> e `eval_metrics.json` no repositório refletem um run degenerado
-> (`val_auc=0.5`, `f1=0.0`) — resultado de um treino em dados limitados/placeholder,
-> não de um modelo calibrado. A infraestrutura (pipeline, registry, serving) é a
-> entrega; a qualidade do modelo depende de treinar sobre o `events.csv` completo.
+`metric=val_ndcg_at_20`, `ascending=false`, `stage=Production`.
 
 ---
 
@@ -177,13 +193,16 @@ Parâmetros em `params.registry`: `model_name=retailrocket_recommender`,
 | **Strategy** | `src/data/preprocessor.py` | `PreprocessStrategy` (ABC) com `RetailRocketPreprocessor` e `DefaultPreprocessor`. Permite trocar a lógica de limpeza sem tocar no estágio DVC. |
 | **Template/ABC** | `src/models/base.py` | `RecommenderBase` define o contrato `fit` / `predict` / `predict_proba` que MLP e baselines respeitam — o que permite ao trainer, evaluate e serving tratarem qualquer modelo de forma uniforme. |
 
-**Modelos registrados**: `mlp` (`src/models/mlp.py`), `logistic` e `dummy`
-(`src/models/baselines.py`). O MLP é uma rede feed-forward PyTorch
-(`Linear→ReLU→Dropout` × camadas ocultas `[128, 64]` → 1 logit), treinada com
-`BCEWithLogitsLoss`, `Adam` e **early stopping** por `patience` épocas sem melhora
-da loss. `predict_proba` aplica `sigmoid`. Os baselines de exploração adicionais
-(Popularidade, Apriori, Item-CF, ALS, Two-Tower) estão nos notebooks — ver
-[`exploration_doc.md`](exploration_doc.md).
+**Modelos registrados**: `ncf` (`src/models/mlp.py`), `logistic` e `dummy`
+(`src/models/baselines.py`). O NCF concatena `nn.Embedding` de usuário, item e
+categoria (tabelas `n+1`, último índice = unknown) às contínuas escaladas e
+passa por um MLP (`Linear→ReLU→Dropout` × `[128, 64]` → 1 logit), treinado com
+`BCEWithLogitsLoss`, `Adam` (+`weight_decay`) e **early stopping por
+val-AUC** (restaura o melhor estado). `predict_proba` aplica `sigmoid`; o
+scaler das contínuas vive dentro do modelo (D5). O baseline de
+**popularidade** é avaliado direto no `evaluate` (mesmos candidatos do
+modelo); os baselines de exploração adicionais (Apriori, Item-CF, ALS,
+Two-Tower) estão nos notebooks — ver [`exploration_doc.md`](exploration_doc.md).
 
 ---
 
@@ -196,11 +215,15 @@ Executar: `make test` (`poetry run pytest tests/ -v`) ou `make test-cov` (HTML e
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `test_preprocess.py` | `DefaultPreprocessor`, `RetailRocketPreprocessor` (filtro, encoding, ordenação) | 11 |
-| `test_feature_engineering.py` | Todas as funções de feature + `chronological_split` | 23 |
-| `test_smoke.py` | `ModelFactory` e MLP (fit + predict em dados sintéticos) | 4 |
+| `test_feature_engineering.py` | Features causais (as-of), ausência de vazamento (AC-3), `chronological_split` | 12 |
+| `test_labeling.py` | Rótulo único, negative sampling 4:1, determinismo, view_count as-of | 11 |
+| `test_ranking.py` | Métricas Top-K (casos à mão), protocolo por usuário, candidatos idênticos (AC-1) | 12 |
+| `test_ncf.py` | Shapes, roteamento unknown (D4), overfit sintético, early stopping | 6 |
+| `test_contract.py` | Contrato treino↔serving: mesmo vetor p/ mesmo (user, item) (FR-007) | 3 |
+| `test_smoke.py` | `ModelFactory` e NCF (fit + predict em dados sintéticos) | 4 |
 | `test_registry.py` | `find_best_model_run`, `register_model`, `promote_model` | 3 |
 | `test_serving.py` | `FeatureStore`, `model_loader`, `RecommendationService`, endpoints | 16 |
-| **Total** | | **57** |
+| **Total** | | **78** |
 
 **Princípios:**
 
@@ -421,11 +444,12 @@ curl "http://localhost:8000/recommend?user_id=11883&top_k=5"
 | Área | Arquivos-chave |
 |------|----------------|
 | Orquestração | `dvc.yaml`, `params.yaml`, `Makefile` |
-| Pipeline | `src/data/preprocess.py`, `src/features/build_features.py`, `src/training/trainer.py`, `src/evaluation/evaluate.py`, `src/models/registry.py` |
-| Features | `src/data/feature_engineering.py`, `src/data/preprocessor.py` |
+| Pipeline | `src/data/preprocess.py`, `src/data/content_etl.py`, `src/features/build_features.py`, `src/training/trainer.py`, `src/evaluation/evaluate.py`, `src/models/registry.py` |
+| Features | `src/data/feature_engineering.py`, `src/data/feature_contract.py`, `src/data/labeling.py`, `src/data/preprocessor.py` |
 | Modelos | `src/models/{base,factory,mlp,baselines}.py` |
+| Avaliação | `src/evaluation/{evaluate,ranking,scorers}.py` |
 | MLflow | `src/utils/mlflow_tracking.py`, `Dockerfile` (stage `mlflow-server`) |
 | Config | `src/config/settings.py`, `.env.example`, `scripts/validate_env.py` |
 | Serving | `src/serving/{api,model_loader,store,recommender}.py` |
-| Testes | `tests/test_{preprocess,feature_engineering,smoke,registry,serving}.py` |
+| Testes | `tests/test_{preprocess,feature_engineering,labeling,ranking,ncf,contract,smoke,registry,serving}.py` |
 | Docker | `Dockerfile`, `docker-compose.yml` |

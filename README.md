@@ -17,7 +17,7 @@ Uma empresa de e-commerce precisa de um sistema de recomendação de produtos ba
 | Linting / formatação | ruff + mypy + pre-commit |
 | Containerização | Docker multi-stage + docker-compose |
 | Configuração | Pydantic Settings + `params.yaml` + `.env` |
-| Testes | pytest + pytest-cov (57 testes, 100% sem I/O de disco) |
+| Testes | pytest + pytest-cov (79 testes, 100% sem I/O de disco) |
 
 ## Estrutura do Projeto
 
@@ -27,10 +27,12 @@ mle-f2-tech-challenge/
 ├── data/
 │   ├── raw/              # Dados brutos (rastreados pelo DVC)
 │   ├── interim/          # Saída do estágio preprocess (data_clean.parquet)
+│   ├── content/          # Saída do estágio content (item_categories.parquet)
 │   ├── processed/        # Splits train/val/test (saída do feature_eng)
 │   └── external/         # Dados externos de referência
-├── docs/                 # eda.md, preprocessing.md, tests.md, make.md,
-│                         # exploration_doc.md, model_card.md, feature_selection.md
+├── docs/                 # how_to_run.md, eda.md, preprocessing.md, tests.md,
+│                         # make.md, exploration_doc.md, model_card.md,
+│                         # feature_selection.md, architecture.md
 ├── metrics/              # Métricas DVC (JSON) e plots
 ├── models/
 │   ├── artifacts/        # Artefatos do modelo por run MLflow
@@ -39,18 +41,20 @@ mle-f2-tech-challenge/
 ├── scripts/              # download_dataset.py, validate_env.py
 ├── src/
 │   ├── config/           # settings.py (Pydantic Settings + .env)
-│   ├── data/             # preprocess.py, preprocessor.py,
-│   │                     # feature_engineering.py, dataset.py, make_dataset.py
+│   ├── data/             # preprocess.py, preprocessor.py, content_etl.py,
+│   │                     # feature_engineering.py, feature_contract.py,
+│   │                     # labeling.py, dataset.py, make_dataset.py
 │   ├── features/         # build_features.py (estágio DVC feature_eng)
-│   ├── models/           # factory.py, base.py, mlp.py, baselines.py, registry.py
+│   ├── models/           # factory.py, base.py, mlp.py (NCF), baselines.py,
+│   │                     # registry.py
 │   ├── training/         # trainer.py
-│   ├── evaluation/       # evaluate.py
+│   ├── evaluation/       # evaluate.py, ranking.py, scorers.py
 │   ├── serving/          # api.py, store.py, model_loader.py, recommender.py
 │   └── utils/            # seed.py, eda.py, plots.py, mlflow_tracking.py,
 │                         # logging_config.py
-├── tests/                # test_preprocess.py, test_feature_engineering.py,
-│                         # test_smoke.py, test_registry.py, test_serving.py
-├── dvc.yaml              # Definição dos 5 estágios do pipeline
+├── tests/                # 79 testes (dados 100% sintéticos) — ver seção Testes
+├── specs/                # Specs de features (001-recommender-quality)
+├── dvc.yaml              # Definição dos 6 estágios do pipeline
 ├── params.yaml           # Hiperparâmetros versionados
 ├── pyproject.toml        # Dependências e configuração de ferramentas
 ├── poetry.lock
@@ -59,6 +63,11 @@ mle-f2-tech-challenge/
 ```
 
 ## Início Rápido
+
+> Guia completo de execução (passo a passo, Windows, troubleshooting):
+> [`docs/how_to_run.md`](docs/how_to_run.md). Para validar os critérios de
+> aceite da spec do recomendador:
+> [`specs/001-recommender-quality/quickstart.md`](specs/001-recommender-quality/quickstart.md).
 
 **Pré-requisitos:** Python 3.11+, pip, Make, Docker
 
@@ -88,10 +97,12 @@ make setup
 ## Pipeline DVC
 
 ```
-data/raw/events.csv
-        │
-        ▼  preprocess   →  data/interim/data_clean.parquet
-        ▼  feature_eng  →  data/processed/{train,val,test}.parquet
+data/raw/events.csv                     data/raw/item_properties_part*.csv
+        │                                       │
+        ▼  preprocess   →  data/interim/        ▼  content → data/content/
+        │                  data_clean.parquet   │            item_categories.parquet
+        └───────────────────┬───────────────────┘
+        ▼  feature_eng  →  data/processed/{train,val,test}.parquet  (features causais)
         ▼  train        →  models/artifacts/ + metrics/train_metrics.json
         ▼  evaluate     →  metrics/eval_metrics.json + metrics/plots/
         ▼  promote      →  models/promoted_model.json (Registry: Staging → Production)
@@ -107,10 +118,16 @@ Estágios individuais:
 
 ```bash
 make preprocess
+poetry run python -m src.data.content_etl   # estágio content (categoryid)
 make feature-eng
 make train
 make evaluate
+make promote
 ```
+
+> **Windows/PowerShell:** rode o DVC via `poetry run dvc repro` (garante o
+> Python da venv) e com `$env:PYTHONUTF8 = "1"` (evita `UnicodeEncodeError`
+> do MLflow no console cp1252). Detalhes em [`docs/how_to_run.md`](docs/how_to_run.md).
 
 ## Desenvolvimento
 
@@ -119,7 +136,7 @@ make env          # primeira vez, ou após alterar pyproject.toml
 make validate-env # checar variáveis de ambiente e dependências
 make lint         # ruff check + verificação de formatação
 make format       # corrigir lint e formatação automaticamente
-make test         # pytest tests/ -v  (57 testes)
+make test         # pytest tests/ -v  (79 testes)
 make test-cov     # pytest com relatório HTML em htmlcov/
 ```
 
@@ -218,7 +235,11 @@ Detalhes completos em [`docs/preprocessing.md`](docs/preprocessing.md). Racional
 
 **Estágio `preprocess`:** filtra usuários com < 5 interações, encoda `visitorid` → `user_idx` e `itemid` → `item_idx` (base-0, contíguos), ordena por timestamp.
 
-**Estágio `feature_eng`:** gera pesos implícitos (view=1, addtocart=3, transaction=5), features temporais (`hour`, `day_of_week`), features de usuário (`frequency`, `recency_days`, `engagement_score`) e de item (`view_count`, `popularity_tier`). Split cronológico sem data leakage: train (~70%) → val (~10%) → test (~20%).
+**Estágio `content`:** extrai o `categoryid` mais recente de cada item dos `item_properties_part*.csv` (leitura em chunks) — vira embedding de categoria no modelo (cold-start de conteúdo).
+
+**Estágio `feature_eng`:** gera pesos implícitos (view=1, addtocart=3, transaction=5), features temporais (`hour`, `day_of_week`) e features **causais** (*as-of*, cada linha usa só eventos anteriores — sem vazamento temporal): usuário (`frequency`, `engagement_score`, `recency_days`) e item (`view_count`, `cat_idx`). Split cronológico: train (~70%) → val (~10%) → test (~20%).
+
+**Labeling (no estágio `train`):** positivo = addtocart/transaction; negativos = pares (user, item) não interagidos, amostrados uniformemente a 8:1 — definição única em `src/data/labeling.py`.
 
 ## Modelos
 
@@ -237,7 +258,10 @@ O modelo principal do pipeline DVC é o **NCF (MLP)** configurado em `params.yam
 
 ## Métricas de Avaliação
 
-Avaliação Top-K aplicada a todos os modelos:
+Avaliação Top-K por usuário (K = 10 e 20), sob relevância **forte**
+(addtocart/transaction) e **ampla** (inclui view), sempre comparando o
+modelo com o **baseline de popularidade** nos mesmos candidatos e
+segmentando usuários **warm** (com histórico de treino) vs. **cold**:
 
 | Métrica | Descrição |
 |---------|-----------|
@@ -246,9 +270,12 @@ Avaliação Top-K aplicada a todos os modelos:
 | Recall@K | Proporção de itens relevantes do usuário recuperados |
 | NDCG@K | Qualidade do ranking — penaliza acertos em posições baixas |
 
+Além disso, o teste rotulado reporta ROC-AUC, Average Precision, F1,
+Precisão e Recall. Resultados e limitações: [`docs/model_card.md`](docs/model_card.md).
+
 ## Design Patterns
 
-- **Factory** (`src/models/factory.py`): `ModelFactory.create("mlp")` instancia qualquer recomendador registrado via `@ModelFactory.register`. Modelo configurado em `params.yaml`.
+- **Factory** (`src/models/factory.py`): `ModelFactory.create("ncf")` instancia qualquer recomendador registrado via `@ModelFactory.register`. Modelo configurado em `params.yaml`.
 - **Strategy** (`src/data/preprocessor.py`): `RetailRocketPreprocessor` implementa `PreprocessStrategy`, permitindo trocar a lógica de pré-processamento sem alterar o pipeline DVC.
 
 ## Testes
@@ -258,31 +285,43 @@ Detalhes em [`docs/tests.md`](docs/tests.md).
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `tests/test_preprocess.py` | DefaultPreprocessor e RetailRocketPreprocessor | 11 |
-| `tests/test_feature_engineering.py` | Todas as funções de feature engineering e split | 23 |
-| `tests/test_smoke.py` | ModelFactory e MLP (fit + predict) | 4 |
+| `tests/test_feature_engineering.py` | Features causais (as-of), ausência de vazamento, split | 12 |
+| `tests/test_labeling.py` | Rótulo único, negative sampling, determinismo | 11 |
+| `tests/test_ranking.py` | Métricas Top-K e protocolo por usuário | 12 |
+| `tests/test_ncf.py` | NCF: shapes, roteamento unknown, sanidade de aprendizado | 7 |
+| `tests/test_contract.py` | Contrato de features treino ↔ serving | 3 |
+| `tests/test_smoke.py` | ModelFactory e NCF (fit + predict) | 4 |
 | `tests/test_registry.py` | Registro e promoção no MLflow Registry | 3 |
 | `tests/test_serving.py` | FeatureStore, model loader, RecommendationService e endpoints | 16 |
-| **Total** | | **57** |
+| **Total** | | **79** |
 
 Todos os testes usam dados sintéticos em memória — sem leitura de `data/` nem
 dependência de servidor MLflow.
 
 ## Parâmetros
 
-`params.yaml` — versionado com DVC:
+`params.yaml` — versionado com DVC (valores completos no arquivo):
 
 ```yaml
-train:
-  model_type: mlp        # mlp | logistic | dummy
-  epochs: 50
-  batch_size: 256
-  learning_rate: 0.001
-  early_stopping_patience: 5
-  random_state: 42
+labeling:
+  num_negatives: 8          # negativos por positivo (amostragem uniforme)
+  popularity_alpha: 0.0
 
-mlflow:
-  experiment_name: recommendation_system
-  run_name: baseline
+train:
+  model_type: ncf           # ncf | logistic | dummy
+  epochs: 40
+  embedding_dim: 64
+  hidden_dims: [128, 64]
+  unknown_dropout: 0.1      # treina o embedding "unknown" (cold-start)
+  weight_decay: 0.0001
+  early_stopping_patience: 5
+
+eval:
+  k_values: [10, 20]           # métricas Top-K
+  num_candidate_negatives: 100 # negativos por usuário na avaliação
+
+registry:
+  metric: val_ndcg_at_20    # métrica de validação usada na promoção
 ```
 
 ## Critérios de Avaliação

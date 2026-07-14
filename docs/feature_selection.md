@@ -190,6 +190,18 @@ Organizadas por esforço/impacto esperado.
 
 ## 8. Plano de execução ordenado
 
+> **Status (2026-07-13): IMPLEMENTADO** pela feature
+> [`specs/001-recommender-quality/`](../specs/001-recommender-quality/spec.md).
+> Fase 0: `src/data/labeling.py` (rótulo único + negative sampling 4:1 por
+> popularidade^0.75), agregações causais em `src/data/feature_engineering.py`,
+> métricas de ranking em `src/evaluation/ranking.py`. Fase 1: NCF com
+> embeddings (+unknown no último índice) em `src/models/mlp.py`, early
+> stopping por val-AUC, promoção por `val_ndcg_at_20`. Fase 2: scaler
+> serializado no `model.pkl`, `categoryid` via estágio `content` do DVC,
+> segmentação warm/cold na avaliação. `popularity_tier` foi descartado como
+> feature (o `view_count` causal contém a mesma informação, contínua).
+> Fase 3 (tuning) permanece como trabalho futuro.
+
 Ordenado por impacto/esforço. As Fases 0–1 são pré-requisito para o modelo aprender
 qualquer coisa; features novas (Fase 2) só valem depois disso.
 
