@@ -56,7 +56,9 @@ def taxa_conversao_evento(
             prev_rates[evt] = 100.0
         else:
             prev_count = counts.iloc[i - 1]
-            prev_rates[evt] = round(counts[evt] / prev_count * 100, 2) if prev_count else 0.0
+            prev_rates[evt] = (
+                round(counts[evt] / prev_count * 100, 2) if prev_count else 0.0
+            )
     return pd.DataFrame(
         {
             "Total": counts,

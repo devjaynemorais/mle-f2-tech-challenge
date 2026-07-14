@@ -65,7 +65,9 @@ def plot_power_law(
     """Histograma (clipped) + log-log para checagem de power-law."""
     fig, axes = plt.subplots(1, 2, figsize=figsize)
 
-    axes[0].hist(series.clip(upper=clip_upper), bins=50, edgecolor="white", color="steelblue")
+    axes[0].hist(
+        series.clip(upper=clip_upper), bins=50, edgecolor="white", color="steelblue"
+    )
     axes[0].set_title(f"{title} (clipped em {clip_upper})")
     axes[0].set_xlabel("Interações")
     axes[0].set_ylabel("Frequência")
@@ -84,7 +86,7 @@ def plot_power_law(
 
 def _annotate_bars(ax: plt.Axes, bars: list, values: list) -> None:
     """Adiciona rótulo de valor ao lado de cada barra horizontal."""
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=True):
         ax.text(
             bar.get_width() * 1.01,
             bar.get_y() + bar.get_height() / 2,
@@ -107,7 +109,9 @@ def plot_conversion_funnel(
     order_rev = order[::-1]
 
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.barh(order_rev, counts[order_rev].values, color=["green", "orange", "steelblue"])
+    bars = ax.barh(
+        order_rev, counts[order_rev].values, color=["green", "orange", "steelblue"]
+    )
     _annotate_bars(ax, bars, counts[order_rev].values)
     ax.set_title("Funil de Conversão", fontsize=12)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x/1e6:.1f}M"))
