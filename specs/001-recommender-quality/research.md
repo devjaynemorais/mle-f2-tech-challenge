@@ -25,6 +25,13 @@ densa usuário×item (235K itens).
 **Alternativas.** (a) Uniforme — descartada por gerar sinal fraco. (b) Todos os negativos
 / full-softmax — inviável a 235K itens por usuário.
 
+> **Revisão empírica (Gate F1).** Com α=0.75 o modelo perdeu para o baseline de
+> popularidade (NDCG@20 0.105 vs 0.348; AUC teste 0.59): negativos amostrados por
+> popularidade ensinam o modelo a **punir** itens populares, enquanto os candidatos
+> da avaliação (D3) são uniformes — descasamento de distribuição. Decisão revista
+> para **α=0 (uniforme)**, o padrão em NCF (He et al.); o expoente permanece
+> parametrizado em `params.labeling.popularity_alpha` para tuning (Fase 3).
+
 ---
 
 ## D2 — Agregação *as-of* eficiente (sem vazamento)
