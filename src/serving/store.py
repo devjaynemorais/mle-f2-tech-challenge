@@ -31,6 +31,7 @@ class FeatureStore:
         self._reference_ts = interactions["timestamp"].max()
         self._users = self._build_users(interactions)
         self._item_vc = self._build_item_views(interactions)
+        self._pairs = self._build_pair_views(interactions)
         self._seen = self._build_seen(interactions)
         self._popular = np.array(
             sorted(self._item_vc, key=lambda i: self._item_vc[i], reverse=True),
@@ -57,8 +58,7 @@ class FeatureStore:
             last_ts=("timestamp", "max"),
         )
         recency = (
-            (self._reference_ts - agg["last_ts"]).dt.total_seconds()
-            / _SECONDS_PER_DAY
+            (self._reference_ts - agg["last_ts"]).dt.total_seconds() / _SECONDS_PER_DAY
         ).fillna(NO_HISTORY_RECENCY)
         return {
             int(u): (float(f), float(e), float(r))
@@ -76,6 +76,22 @@ class FeatureStore:
         views = df.loc[df["event"] == "view"].groupby("item_idx").size()
         all_items = df["item_idx"].unique()
         return {int(i): int(views.get(i, 0)) for i in all_items}
+
+    def _build_pair_views(
+        self, df: pd.DataFrame
+    ) -> dict[tuple[int, int], tuple[int, float]]:
+        """Mapeia (user_idx, item_idx) → (views do par, recência em dias)."""
+        views = df.loc[df["event"] == "view", ["user_idx", "item_idx", "timestamp"]]
+        agg = views.groupby(["user_idx", "item_idx"]).agg(
+            count=("timestamp", "size"), last_ts=("timestamp", "max")
+        )
+        recency = (
+            self._reference_ts - agg["last_ts"]
+        ).dt.total_seconds() / _SECONDS_PER_DAY
+        return {
+            (int(u), int(i)): (int(c), float(r))
+            for (u, i), c, r in zip(agg.index, agg["count"], recency, strict=True)
+        }
 
     def _build_seen(self, df: pd.DataFrame) -> dict[int, set[int]]:
         """Mapeia user_idx → conjunto de item_idx já vistos."""
@@ -113,6 +129,22 @@ class FeatureStore:
     def view_counts(self, items: np.ndarray) -> np.ndarray:
         """Retorna os view_counts alinhados ao array de itens."""
         return np.array([self._item_vc.get(int(i), 0) for i in items], dtype="int64")
+
+    def pair_features(
+        self, user_idx: int, items: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Retorna (user_item_view_count, user_item_recency_days) por item.
+
+        Sentinela ``NO_HISTORY_RECENCY`` quando o par (usuário, item) nunca
+        teve view (spec 002, FR-007/FR-008).
+        """
+        counts = np.empty(len(items), dtype="float64")
+        recency = np.empty(len(items), dtype="float64")
+        for pos, item in enumerate(items):
+            state = self._pairs.get((int(user_idx), int(item)))
+            counts[pos] = state[0] if state else 0.0
+            recency[pos] = state[1] if state else NO_HISTORY_RECENCY
+        return counts, recency
 
     def popular_items(self, k: int) -> list[tuple[int, int]]:
         """Retorna os top-k (item_idx, view_count) por popularidade."""

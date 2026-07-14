@@ -63,6 +63,7 @@ class RecommendationService:
         freq, eng, rec = self.store.user_features(user_id)
         now = datetime.now()
         n = items.shape[0]
+        pair_count, pair_recency = self.store.pair_features(user_id, items)
         cols = {
             "user_idx": np.full(n, user_id),
             "item_idx": items,
@@ -72,6 +73,8 @@ class RecommendationService:
             "engagement_score": np.full(n, eng),
             "recency_days": np.full(n, rec),
             "view_count": self.store.view_counts(items),
+            "user_item_view_count": pair_count,
+            "user_item_recency_days": pair_recency,
         }
         return np.column_stack([cols[c] for c in FEATURE_COLS]).astype("float32")
 
