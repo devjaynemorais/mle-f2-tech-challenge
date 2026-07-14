@@ -21,7 +21,7 @@ import yaml
 from sklearn.metrics import roc_auc_score
 
 from src.config.settings import settings
-from src.data.feature_contract import FEATURE_COLS, TARGET_COL
+from src.data.feature_contract import FEATURE_COLS, TARGET_COL, VIEW_TARGET_COL
 from src.data.labeling import (
     STRONG_RELEVANCE_EVENTS,
     build_labeled_dataset,
@@ -54,7 +54,7 @@ def load_splits() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def build_training_arrays(
     train_df: pd.DataFrame, val_df: pd.DataFrame, labeling_p: dict
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
     """Rotula os splits (positivos + negativos amostrados) e vira matrizes.
 
     Args:
@@ -63,20 +63,31 @@ def build_training_arrays(
         labeling_p: Bloco ``labeling`` do params.yaml.
 
     Returns:
-        Tupla (X_train, y_train, X_val, y_val) na ordem do contrato.
+        Tupla (X_train, y_train, X_val, y_val, y_view_train) na ordem do
+        contrato. ``y_view_train`` é ``None`` se
+        ``labeling.view_sample_ratio`` for 0/ausente (multi-task desligado
+        — spec 002, FR-001/FR-003).
     """
     kwargs = {
         "num_negatives": labeling_p["num_negatives"],
         "popularity_alpha": labeling_p["popularity_alpha"],
         "seed": labeling_p["seed"],
     }
-    labeled_train = build_labeled_dataset(train_df, **kwargs)
+    view_sample_ratio = labeling_p.get("view_sample_ratio", 0.0)
+    labeled_train = build_labeled_dataset(
+        train_df, view_sample_ratio=view_sample_ratio, **kwargs
+    )
     labeled_val = build_labeled_dataset(val_df, history=train_df, **kwargs)
     X_train = labeled_train[FEATURE_COLS].to_numpy(dtype="float32")
     y_train = labeled_train[TARGET_COL].to_numpy(dtype="float32")
     X_val = labeled_val[FEATURE_COLS].to_numpy(dtype="float32")
     y_val = labeled_val[TARGET_COL].to_numpy(dtype="float32")
-    return X_train, y_train, X_val, y_val
+    y_view_train = (
+        labeled_train[VIEW_TARGET_COL].to_numpy(dtype="float32")
+        if view_sample_ratio > 0
+        else None
+    )
+    return X_train, y_train, X_val, y_val, y_view_train
 
 
 def _vocab_kwargs(train_df: pd.DataFrame, val_df: pd.DataFrame) -> dict:
@@ -116,6 +127,7 @@ def _create_model(
             hidden_dims=list(train_p["hidden_dims"]),
             dropout=train_p["dropout"],
             unknown_dropout=train_p["unknown_dropout"],
+            view_loss_weight=train_p.get("view_loss_weight", 0.0),
             lr=train_p["learning_rate"],
             weight_decay=train_p["weight_decay"],
             epochs=train_p["epochs"],
@@ -198,10 +210,16 @@ def _fit(
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
+    y_view_train: np.ndarray | None = None,
 ) -> None:
-    """Treina o modelo; NCF recebe a validação para o early stopping."""
+    """Treina o modelo; NCF recebe a validação para o early stopping.
+
+    ``y_view_train`` (spec 002) só é consumido pelo NCF e só ativa a loss
+    auxiliar de ``view`` — early stopping continua sobre a validação da
+    interação forte (FR-005), inalterado.
+    """
     if isinstance(model, NCFRecommender):
-        model.fit(X_train, y_train, X_val=X_val, y_val=y_val)
+        model.fit(X_train, y_train, X_val=X_val, y_val=y_val, y_view=y_view_train)
     else:
         model.fit(X_train, y_train)
 
@@ -210,7 +228,7 @@ def _train_and_log(params: dict) -> None:
     """Treina o modelo e registra métricas e artefato no MLflow."""
     train_p, mlflow_p = params["train"], params["mlflow"]
     train_df, val_df = load_splits()
-    X_train, y_train, X_val, y_val = build_training_arrays(
+    X_train, y_train, X_val, y_val, y_view_train = build_training_arrays(
         train_df, val_df, params["labeling"]
     )
     run_name = mlflow_p.get("run_name", train_p["model_type"])
@@ -220,7 +238,7 @@ def _train_and_log(params: dict) -> None:
         )
         model = _create_model(train_p, train_df, val_df)
         logger.info("Treinando modelo: %s", train_p["model_type"])
-        _fit(model, X_train, y_train, X_val, y_val)
+        _fit(model, X_train, y_train, X_val, y_val, y_view_train)
         val_auc = float(roc_auc_score(y_val, model.predict_proba(X_val)))
         val_ndcg = val_ranking_metric(model, train_df, val_df, params["eval"])
         metrics = {

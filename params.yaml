@@ -11,6 +11,9 @@ labeling:
   popularity_alpha: 0.0     # 0 = uniforme; α=0.75 punia popularidade e perdia
                             # p/ o baseline (ver research.md D1 — revisão empírica)
   seed: 42
+  view_sample_ratio: 8      # views reais amostradas por positivo forte, como
+                            # sinal auxiliar de multi-task (spec 002, D1).
+                            # 0 desliga o multi-task (comportamento anterior).
 
 train:
   model_type: ncf           # opções: ncf | logistic | dummy
@@ -24,6 +27,9 @@ train:
   hidden_dims: [128, 64]
   dropout: 0.2
   unknown_dropout: 0.1    # id-dropout: treina o embedding unknown (cold-start)
+  view_loss_weight: 0.3   # λ da loss auxiliar de view (spec 002, D3) — baixo
+                          # de propósito p/ não dominar o cenário principal
+                          # (ver research.md D3 — lição do popularity_alpha)
   early_stopping_patience: 5
   random_state: 42
 
