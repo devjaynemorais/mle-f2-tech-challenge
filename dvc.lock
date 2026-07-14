@@ -3,15 +3,18 @@ stages:
   preprocess:
     cmd: python -m src.data.preprocess
     deps:
-    - path: data/raw/
+    - path: data/raw/events.csv
       hash: md5
-      md5: 19cdee87944c59fc15c51396fe37cd88.dir
-      size: 987498023
-      nfiles: 4
+      md5: fddaf7c1c6a9df23a726500a08ffdd7e
+      size: 94237913
     - path: src/data/preprocess.py
       hash: md5
       md5: ca046dffc91224dc69f1c6d61174d867
       size: 1373
+    - path: src/data/preprocessor.py
+      hash: md5
+      md5: cd53058764c5d3520826cf21adceaddc
+      size: 2884
     params:
       params.yaml:
         preprocess:
@@ -21,100 +24,231 @@ stages:
     outs:
     - path: data/interim/
       hash: md5
-      md5: f895c79ec14e864d81fac59e4e2115d0.dir
+      md5: e0f0a62609fa911a134a51163db11e0b.dir
       size: 16459625
       nfiles: 1
   feature_eng:
     cmd: python -m src.features.build_features
     deps:
+    - path: data/content/
+      hash: md5
+      md5: 15aa055ce683faa22e86ffefbc41f188.dir
+      size: 2862920
+      nfiles: 1
     - path: data/interim/
       hash: md5
-      md5: f895c79ec14e864d81fac59e4e2115d0.dir
+      md5: e0f0a62609fa911a134a51163db11e0b.dir
       size: 16459625
       nfiles: 1
+    - path: src/data/feature_contract.py
+      hash: md5
+      md5: 21acbca92df3082ab19b3d74b8b28d38
+      size: 1326
+    - path: src/data/feature_engineering.py
+      hash: md5
+      md5: 9159029de0113416a4a48606462dbadb
+      size: 4147
     - path: src/features/build_features.py
       hash: md5
-      md5: 7b7ec1e41a54c7c19bc256959936f2f7
-      size: 2929
+      md5: 3446169280d773f0e17d639b18e7467d
+      size: 4534
     params:
       params.yaml:
         feature_eng:
           random_state: 42
+        preprocess:
+          test_size: 0.2
+          val_size: 0.1
+          random_state: 42
     outs:
     - path: data/processed/
       hash: md5
-      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
-      size: 21481969
+      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
+      size: 29908493
       nfiles: 3
   train:
     cmd: python -m src.training.trainer
     deps:
     - path: data/processed/
       hash: md5
-      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
-      size: 21481969
+      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
+      size: 29908493
       nfiles: 3
+    - path: src/data/dataset.py
+      hash: md5
+      md5: 75a3a64741649a0a0e9d9f281b7ff06b
+      size: 2703
+    - path: src/data/feature_contract.py
+      hash: md5
+      md5: 21acbca92df3082ab19b3d74b8b28d38
+      size: 1326
+    - path: src/data/labeling.py
+      hash: md5
+      md5: 6478690f405dd1325ea3797239de1bc3
+      size: 7438
+    - path: src/evaluation/ranking.py
+      hash: md5
+      md5: 157420deff02fa38c0dc76ca95a0f659
+      size: 7744
+    - path: src/evaluation/scorers.py
+      hash: md5
+      md5: bdd1b9789478ff0e3a7158c387584d8c
+      size: 5012
     - path: src/models/
       hash: md5
-      md5: 91468c41bc361164c6297df57e0e25ca.dir
-      size: 27816
-      nfiles: 10
+      md5: 2d757bbd40d792b995c6ae96a978e49e.dir
+      size: 52060
+      nfiles: 12
     - path: src/training/trainer.py
       hash: md5
-      md5: 9bc1281b8effcf5abfa1d7237a0b019d
-      size: 4368
+      md5: fab243bfabe3d0284c614df0eac880c4
+      size: 9285
     params:
       params.yaml:
+        eval:
+          k_values:
+          - 10
+          - 20
+          num_candidate_negatives: 100
+          max_broad_positives: 20
+          seed: 42
+        labeling:
+          num_negatives: 8
+          popularity_alpha: 0.0
+          seed: 42
         train:
-          model_type: mlp
-          epochs: 50
-          batch_size: 256
+          model_type: ncf
+          epochs: 40
+          batch_size: 1024
           learning_rate: 0.001
+          weight_decay: 0.0001
+          embedding_dim: 64
+          cat_embedding_dim: 8
+          hidden_dims:
+          - 128
+          - 64
+          dropout: 0.2
+          unknown_dropout: 0.1
           early_stopping_patience: 5
           random_state: 42
     outs:
     - path: metrics/train_metrics.json
       hash: md5
-      md5: 56d73f28c1949502145fe4451416e4d8
-      size: 46
+      md5: a29b1123c099df954ecb720a7d42cbfc
+      size: 100
     - path: models/artifacts/
       hash: md5
-      md5: 61ec8df5ef195b90ecb6bf0343a79aaf.dir
-      size: 41636
+      md5: 3355764b8c83db1a2b3ca32c13965421.dir
+      size: 48653758
       nfiles: 1
   evaluate:
     cmd: python -m src.evaluation.evaluate
     deps:
     - path: data/processed/
       hash: md5
-      md5: 3b6c405601fdc8de5a06ff9143ae4c1c.dir
-      size: 21481969
+      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
+      size: 29908493
       nfiles: 3
     - path: models/artifacts/
       hash: md5
-      md5: 61ec8df5ef195b90ecb6bf0343a79aaf.dir
-      size: 41636
+      md5: 3355764b8c83db1a2b3ca32c13965421.dir
+      size: 48653758
       nfiles: 1
+    - path: src/data/feature_contract.py
+      hash: md5
+      md5: 21acbca92df3082ab19b3d74b8b28d38
+      size: 1326
+    - path: src/data/labeling.py
+      hash: md5
+      md5: 6478690f405dd1325ea3797239de1bc3
+      size: 7438
     - path: src/evaluation/evaluate.py
       hash: md5
-      md5: acc100725c5aee449326c99c4fba4015
-      size: 4617
+      md5: 9872b8b7fa98698c223e966d80fbc56c
+      size: 10482
+    - path: src/evaluation/ranking.py
+      hash: md5
+      md5: 157420deff02fa38c0dc76ca95a0f659
+      size: 7744
+    - path: src/evaluation/scorers.py
+      hash: md5
+      md5: bdd1b9789478ff0e3a7158c387584d8c
+      size: 5012
     params:
       params.yaml:
-        train:
-          model_type: mlp
-          epochs: 50
-          batch_size: 256
-          learning_rate: 0.001
-          early_stopping_patience: 5
-          random_state: 42
+        eval:
+          k_values:
+          - 10
+          - 20
+          num_candidate_negatives: 100
+          max_broad_positives: 20
+          seed: 42
+        labeling:
+          num_negatives: 8
+          popularity_alpha: 0.0
+          seed: 42
     outs:
     - path: metrics/eval_metrics.json
       hash: md5
-      md5: ca36ced452a7aee8e9001a9742a97def
-      size: 120
+      md5: d7afe735fe1d488d719a7c4bbf9faaa9
+      size: 5615
     - path: metrics/plots/
       hash: md5
-      md5: 8fded13d2fbf1cbb95dfd95a009e6063.dir
-      size: 138
+      md5: 314a5f789f6089a9c6ea0c25f983d7c9.dir
+      size: 9694902
       nfiles: 2
+  content:
+    cmd: python -m src.data.content_etl
+    deps:
+    - path: data/raw/item_properties_part1.csv
+      hash: md5
+      md5: cb43a0682a1af76f1c1b60f9163ae47b
+      size: 484315749
+    - path: data/raw/item_properties_part2.csv
+      hash: md5
+      md5: e74ec953e7b192920b195dfd82dc2a4e
+      size: 408929907
+    - path: src/data/content_etl.py
+      hash: md5
+      md5: 546f816b88109ac85290e7baade3c2cf
+      size: 2712
+    outs:
+    - path: data/content/
+      hash: md5
+      md5: 15aa055ce683faa22e86ffefbc41f188.dir
+      size: 2862920
+      nfiles: 1
+  promote:
+    cmd: python -m src.models.registry
+    deps:
+    - path: metrics/eval_metrics.json
+      hash: md5
+      md5: d7afe735fe1d488d719a7c4bbf9faaa9
+      size: 5615
+    - path: metrics/train_metrics.json
+      hash: md5
+      md5: a29b1123c099df954ecb720a7d42cbfc
+      size: 100
+    - path: src/models/registry.py
+      hash: md5
+      md5: bd5cddc8aa904891cebc8d0f719af92c
+      size: 1998
+    - path: src/utils/mlflow_tracking.py
+      hash: md5
+      md5: 12906a89570e4a5f829f74d3b0599408
+      size: 3851
+    params:
+      params.yaml:
+        mlflow:
+          experiment_name: recommendation_system
+          run_name: ncf
+        registry:
+          model_name: retailrocket_recommender
+          metric: val_ndcg_at_20
+          ascending: false
+          stage: Production
+    outs:
+    - path: models/promoted_model.json
+      hash: md5
+      md5: 2c56487d6fd36f8fe2bfc9c69f774d83
+      size: 206
