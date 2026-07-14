@@ -1,15 +1,20 @@
-"""Engenharia de features para o RetailRocket dataset.
+"""Engenharia de features CAUSAIS para o RetailRocket dataset (FR-003, D2).
 
-Todas as funções são puras (DataFrame → DataFrame) e não dependem de disco.
-Pesos de eventos: view=1, addtocart=3, transaction=5.
+Todas as agregações são *as-of*: cada linha enxerga apenas eventos
+estritamente anteriores a ela — por construção não há vazamento temporal,
+independentemente do split. Funções puras (DataFrame → DataFrame).
+
+A definição de pesos/rótulo vive em ``src.data.labeling`` (FR-002).
 """
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
-EVENT_WEIGHTS: dict[str, int] = {"view": 1, "addtocart": 3, "transaction": 5}
+from src.data.feature_contract import NO_HISTORY_RECENCY
+from src.data.labeling import EVENT_WEIGHTS
+
+_SECONDS_PER_DAY = 86400.0
 
 
 def add_event_weights(df: pd.DataFrame) -> pd.DataFrame:
@@ -41,79 +46,62 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def compute_user_features(
-    df: pd.DataFrame,
-    reference_date: pd.Timestamp | None = None,
-) -> pd.DataFrame:
-    """Agrega features de comportamento por usuário.
+def add_causal_user_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Features de usuário *as-of*: excluem o evento corrente.
+
+    - ``frequency``: nº de eventos anteriores do usuário.
+    - ``engagement_score``: soma dos pesos dos eventos anteriores.
+    - ``recency_days``: dias desde o evento anterior do usuário
+      (``NO_HISTORY_RECENCY`` quando é o primeiro evento).
 
     Args:
-        df: DataFrame com colunas 'user_idx', 'timestamp', 'weight'.
-        reference_date: Data de referência para cálculo de recência.
-            Padrão: dia seguinte ao último evento.
+        df: DataFrame com user_idx, timestamp e weight, ordenado por timestamp.
 
     Returns:
-        DataFrame com uma linha por user_idx e colunas:
-        frequency, recency_days, engagement_score.
+        DataFrame com as três colunas causais adicionadas.
     """
-    if reference_date is None:
-        reference_date = df["timestamp"].max() + pd.Timedelta(days=1)
-    agg = (
-        df.groupby("user_idx")
-        .agg(
-            frequency=("user_idx", "count"),
-            last_event=("timestamp", "max"),
-            engagement_score=("weight", "sum"),
-        )
-        .reset_index()
-    )
-    agg["recency_days"] = (
-        reference_date.normalize() - agg["last_event"].dt.normalize()
-    ).dt.days
-    return agg.drop(columns=["last_event"])
+    df = df.copy()
+    grouped = df.groupby("user_idx", sort=False)
+    df["frequency"] = grouped.cumcount()
+    df["engagement_score"] = grouped["weight"].cumsum() - df["weight"]
+    prev_ts = grouped["timestamp"].shift(1)
+    delta = (df["timestamp"] - prev_ts).dt.total_seconds() / _SECONDS_PER_DAY
+    df["recency_days"] = delta.fillna(NO_HISTORY_RECENCY)
+    return df
 
 
-def compute_item_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Agrega features de popularidade por item.
+def add_causal_item_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Features de item *as-of*: ``view_count`` = views anteriores do item.
 
     Args:
-        df: DataFrame com colunas 'item_idx', 'event'.
+        df: DataFrame com item_idx e event, ordenado por timestamp.
 
     Returns:
-        DataFrame com uma linha por item_idx e colunas:
-        view_count, popularity_tier (long_tail / mid_tier / top_tier).
+        DataFrame com a coluna view_count adicionada.
     """
-    views = df[df["event"] == "view"]
-    vc = views.groupby("item_idx").size().reset_index(name="view_count")
-    all_items = df[["item_idx"]].drop_duplicates()
-    item_feats = all_items.merge(vc, on="item_idx", how="left").fillna({"view_count": 0})
-    item_feats["view_count"] = item_feats["view_count"].astype(int)
-    p50 = item_feats["view_count"].quantile(0.5)
-    p90 = item_feats["view_count"].quantile(0.9)
-    conditions = [item_feats["view_count"] > p90, item_feats["view_count"] > p50]
-    item_feats["popularity_tier"] = np.select(
-        conditions, ["top_tier", "mid_tier"], default="long_tail"
-    )
-    return item_feats
+    df = df.copy()
+    is_view = (df["event"] == "view").astype("int64")
+    df["view_count"] = is_view.groupby(df["item_idx"]).cumsum() - is_view
+    return df
 
 
-def build_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Constrói DataFrame de interações com todas as features.
+def build_causal_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Constrói o DataFrame de interações com todas as features causais.
 
-    Combina features de evento, temporais, usuário e item em cada linha.
+    Ordena por timestamp (estável) e aplica pesos, features temporais e
+    agregações *as-of* de usuário e item.
 
     Args:
         df: DataFrame limpo com colunas user_idx, item_idx, timestamp, event.
 
     Returns:
-        DataFrame com features completas para treinamento.
+        DataFrame com features completas, uma linha por evento.
     """
+    df = df.sort_values("timestamp", kind="stable").reset_index(drop=True)
     df = add_event_weights(df)
     df = add_temporal_features(df)
-    user_feats = compute_user_features(df)
-    item_feats = compute_item_features(df)
-    df = df.merge(user_feats, on="user_idx", how="left")
-    df = df.merge(item_feats, on="item_idx", how="left")
+    df = add_causal_user_features(df)
+    df = add_causal_item_features(df)
     return df
 
 
@@ -132,7 +120,7 @@ def chronological_split(
     Returns:
         Tupla (train_df, val_df, test_df) com splits cronológicos.
     """
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    df = df.sort_values("timestamp", kind="stable").reset_index(drop=True)
     n = len(df)
     n_test = round(n * test_size)
     n_val = round(n * val_size)
