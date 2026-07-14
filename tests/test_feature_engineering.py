@@ -10,6 +10,7 @@ import pytest
 from src.data.feature_contract import NO_HISTORY_RECENCY
 from src.data.feature_engineering import (
     add_causal_item_features,
+    add_causal_pair_features,
     add_causal_user_features,
     add_event_weights,
     add_temporal_features,
@@ -133,6 +134,53 @@ def test_causal_view_count_ignores_non_view_events(df_clean: pd.DataFrame) -> No
 
 
 # ---------------------------------------------------------------------------
+# Features causais do PAR (usuário, item) — spec 002, FR-007/FR-008
+# ---------------------------------------------------------------------------
+
+
+def test_causal_pair_view_count_counts_only_prior_pair_views(
+    df_clean: pd.DataFrame,
+) -> None:
+    """user_item_view_count = views ANTERIORES desse par específico."""
+    df = add_causal_pair_features(df_clean)
+    # user 0, item 1: view (linha 1), depois addtocart (linha 2)
+    pair = df[(df["user_idx"] == 0) & (df["item_idx"] == 1)]
+    assert pair["user_item_view_count"].tolist() == [0, 1]
+
+
+def test_causal_pair_view_count_ignores_other_users_of_same_item(
+    df_clean: pd.DataFrame,
+) -> None:
+    """View de OUTRO usuário no mesmo item não conta para este par."""
+    df = add_causal_pair_features(df_clean)
+    # item 0 tem views de user0 (linha0), user1 (linha5), user2 (linha8) —
+    # cada par (user, item0) só viu 1 vez, então a contagem própria é 0.
+    item0 = df[df["item_idx"] == 0]
+    assert item0["user_item_view_count"].tolist() == [0, 0, 0]
+
+
+def test_causal_pair_recency_days_from_previous_pair_view(
+    df_clean: pd.DataFrame,
+) -> None:
+    """user_item_recency_days = dias desde a última view ANTERIOR do par."""
+    df = add_causal_pair_features(df_clean)
+    pair = df[(df["user_idx"] == 0) & (df["item_idx"] == 1)]
+    assert pair["user_item_recency_days"].iloc[0] == NO_HISTORY_RECENCY
+    # view em 2015-05-02 14:00 → addtocart em 2015-05-03 09:00 = 19h
+    assert pair["user_item_recency_days"].iloc[1] == pytest.approx(19 / 24)
+
+
+def test_causal_pair_recency_sentinel_when_pair_never_seen(
+    df_clean: pd.DataFrame,
+) -> None:
+    """Par (usuário, item) sem view anterior recebe o sentinela."""
+    df = add_causal_pair_features(df_clean)
+    # user 0, item 2: primeira interação é view (linha 3) — sem par anterior.
+    pair = df[(df["user_idx"] == 0) & (df["item_idx"] == 2)]
+    assert pair["user_item_recency_days"].iloc[0] == NO_HISTORY_RECENCY
+
+
+# ---------------------------------------------------------------------------
 # Ausência de vazamento temporal (AC-3)
 # ---------------------------------------------------------------------------
 
@@ -150,6 +198,8 @@ def test_no_temporal_leakage_features_unchanged_by_future(
         "engagement_score",
         "recency_days",
         "view_count",
+        "user_item_view_count",
+        "user_item_recency_days",
     ]
     full = build_causal_features(df_clean)
     prefix = build_causal_features(df_clean.iloc[:6])
@@ -170,6 +220,8 @@ def test_build_causal_features_has_all_columns(df_clean: pd.DataFrame) -> None:
         "engagement_score",
         "recency_days",
         "view_count",
+        "user_item_view_count",
+        "user_item_recency_days",
     ):
         assert col in result.columns
     assert len(result) == len(df_clean)

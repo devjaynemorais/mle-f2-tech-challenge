@@ -18,15 +18,18 @@ from src.data.feature_contract import CONT_COLS, TARGET_COL
 class RetailRocketDataset(Dataset):
     """Dataset de interações rotuladas para o NCF.
 
-    Cada amostra é a tupla ``(user_idx, item_idx, cat_idx, x_cont, y)`` com
-    ids em ``long`` e contínuas/alvo em ``float32``.
+    Cada amostra é a tupla ``(user_idx, item_idx, cat_idx, x_cont, y, y_view)``
+    com ids em ``long`` e contínuas/alvos em ``float32``.
 
     Args:
         users: Índices de usuário (já roteados para o vocabulário do modelo).
         items: Índices de item.
         x_cont: Matriz de features contínuas (já escaladas).
-        y: Rótulos binários.
+        y: Rótulos binários de interação forte.
         cats: Índices de categoria do item (default: zeros).
+        y_view: Rótulos binários auxiliares de ``view`` (multi-task, spec
+            002). Default: zeros — só é usado pelo treino se o chamador
+            (``NCFRecommender.fit``) tiver recebido ``y_view`` de verdade.
     """
 
     def __init__(
@@ -36,6 +39,7 @@ class RetailRocketDataset(Dataset):
         x_cont: np.ndarray,
         y: np.ndarray,
         cats: np.ndarray | None = None,
+        y_view: np.ndarray | None = None,
     ) -> None:
         self._users = torch.as_tensor(np.asarray(users), dtype=torch.long)
         self._items = torch.as_tensor(np.asarray(items), dtype=torch.long)
@@ -43,6 +47,8 @@ class RetailRocketDataset(Dataset):
         self._cats = torch.as_tensor(np.asarray(cats), dtype=torch.long)
         self._x_cont = torch.as_tensor(np.asarray(x_cont), dtype=torch.float32)
         self._y = torch.as_tensor(np.asarray(y), dtype=torch.float32)
+        y_view = y_view if y_view is not None else np.zeros(len(users), dtype="float32")
+        self._y_view = torch.as_tensor(np.asarray(y_view), dtype=torch.float32)
 
     @classmethod
     def from_dataframe(
@@ -68,12 +74,15 @@ class RetailRocketDataset(Dataset):
         """Retorna número de amostras no dataset."""
         return len(self._y)
 
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-        """Retorna (user_idx, item_idx, cat_idx, x_cont, y) para o índice."""
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+        """Retorna (user_idx, item_idx, cat_idx, x_cont, y, y_view) do índice."""
         return (
             self._users[idx],
             self._items[idx],
             self._cats[idx],
             self._x_cont[idx],
             self._y[idx],
+            self._y_view[idx],
         )

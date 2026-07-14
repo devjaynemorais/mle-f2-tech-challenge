@@ -24,6 +24,8 @@ CONT_COLS: list[str] = [
     "engagement_score",
     "recency_days",
     "view_count",
+    "user_item_view_count",
+    "user_item_recency_days",
 ]
 
 # Ordem completa da matriz de entrada: ids primeiro, contínuas depois.
@@ -32,8 +34,14 @@ FEATURE_COLS: list[str] = ID_COLS + CONT_COLS
 # Coluna alvo do dataset rotulado (positivo=1 / negativo amostrado=0).
 TARGET_COL: str = "label"
 
-# Sentinela de recency_days para "usuário sem evento anterior".
+# Coluna alvo auxiliar (multi-task, spec 002): 1 = par (user, item) com
+# QUALQUER interação observada (view/addtocart/transaction), 0 = negativo
+# amostrado. Coexiste com TARGET_COL, não o substitui.
+VIEW_TARGET_COL: str = "view_label"
+
+# Sentinela de recency_days/user_item_recency_days para "sem evento anterior".
 NO_HISTORY_RECENCY: float = -1.0
 
 # Versão do contrato — gravada nos metadados do modelo serializado.
-CONTRACT_VERSION: int = 2
+# v3 (spec 002): + user_item_view_count, user_item_recency_days (par causal).
+CONTRACT_VERSION: int = 3

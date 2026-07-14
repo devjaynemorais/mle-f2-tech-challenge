@@ -85,11 +85,41 @@ def add_causal_item_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_causal_pair_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Features causais do par (usuário, item) — sinal específico do par.
+
+    Dá sinal a usuários/itens com pouco histórico agregado, mas que já
+    interagiram um com o outro antes (spec 002, FR-007/FR-008):
+
+    - ``user_item_view_count``: nº de views *anteriores* deste usuário
+      neste item específico.
+    - ``user_item_recency_days``: dias desde a última view *anterior*
+      deste usuário neste item (``NO_HISTORY_RECENCY`` se nunca visto).
+
+    Args:
+        df: DataFrame com user_idx, item_idx, event e timestamp, ordenado
+            por timestamp.
+
+    Returns:
+        DataFrame com as duas colunas de par adicionadas.
+    """
+    df = df.copy()
+    is_view = (df["event"] == "view").astype("int64")
+    pair_key = [df["user_idx"], df["item_idx"]]
+    df["user_item_view_count"] = is_view.groupby(pair_key).cumsum() - is_view
+
+    view_ts = df["timestamp"].where(df["event"] == "view")
+    prev_view_ts = view_ts.groupby(pair_key).transform(lambda s: s.shift(1).ffill())
+    delta = (df["timestamp"] - prev_view_ts).dt.total_seconds() / _SECONDS_PER_DAY
+    df["user_item_recency_days"] = delta.fillna(NO_HISTORY_RECENCY)
+    return df
+
+
 def build_causal_features(df: pd.DataFrame) -> pd.DataFrame:
     """Constrói o DataFrame de interações com todas as features causais.
 
     Ordena por timestamp (estável) e aplica pesos, features temporais e
-    agregações *as-of* de usuário e item.
+    agregações *as-of* de usuário, item e do par (usuário, item).
 
     Args:
         df: DataFrame limpo com colunas user_idx, item_idx, timestamp, event.
@@ -102,6 +132,7 @@ def build_causal_features(df: pd.DataFrame) -> pd.DataFrame:
     df = add_temporal_features(df)
     df = add_causal_user_features(df)
     df = add_causal_item_features(df)
+    df = add_causal_pair_features(df)
     return df
 
 

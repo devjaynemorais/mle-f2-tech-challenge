@@ -4,13 +4,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.data.feature_contract import FEATURE_COLS, TARGET_COL
+from src.data.feature_contract import (
+    FEATURE_COLS,
+    NO_HISTORY_RECENCY,
+    TARGET_COL,
+    VIEW_TARGET_COL,
+)
 from src.data.feature_engineering import build_causal_features
 from src.data.labeling import (
     POSITIVE_EVENTS,
+    _as_of_pair_features,
     _as_of_view_counts,
+    _sample_view_rows,
     build_item_view_times,
     build_labeled_dataset,
+    build_user_item_view_times,
     build_user_seen,
     is_positive,
     item_popularity,
@@ -106,6 +114,72 @@ def test_as_of_view_counts_strictly_before_timestamp():
     counts = _as_of_view_counts(items, ts, view_times)
     # 2015-05-05 exato NÃO conta (estritamente antes); item 9 sem views → 0
     assert counts.tolist() == [1.0, 2.0, 3.0, 0.0]
+
+
+def test_as_of_pair_features_strictly_before_timestamp():
+    """user_item_view_count/recency do par — mesma semântica de view_count."""
+    history = pd.DataFrame(
+        {
+            "user_idx": [1, 1, 1],
+            "item_idx": [5, 5, 5],
+            "event": ["view", "view", "view"],
+            "timestamp": pd.to_datetime(["2015-05-01", "2015-05-03", "2015-05-05"]),
+        }
+    )
+    pair_view_times = build_user_item_view_times(history)
+    users = np.array([1, 1, 1, 1])
+    items = np.array([5, 5, 5, 9])  # item 9: par nunca visto por este usuário
+    ts = pd.to_datetime(
+        ["2015-05-02", "2015-05-05", "2015-05-06", "2015-05-06"]
+    ).to_numpy()
+    counts, recency = _as_of_pair_features(users, items, ts, pair_view_times)
+    assert counts.tolist() == [1.0, 2.0, 3.0, 0.0]
+    assert recency[0] == pytest.approx(1.0)  # 2015-05-01 → 2015-05-02
+    assert recency[3] == NO_HISTORY_RECENCY
+
+
+def test_negative_pair_features_are_always_sentinel(events):
+    """Negativos nunca foram vistos pelo usuário → par sempre 'nunca visto'.
+
+    Invariante forte: como os negativos amostrados excluem por construção
+    qualquer item já visto pelo usuário (``_seen_mask``), o par (usuário,
+    item negativo) nunca teve view — user_item_view_count DEVE ser 0 e
+    user_item_recency_days DEVE ser o sentinela, sempre.
+    """
+    labeled = build_labeled_dataset(events, seed=1)
+    negatives = labeled[labeled[TARGET_COL] == 0.0]
+    assert (negatives["user_item_view_count"] == 0.0).all()
+    assert (negatives["user_item_recency_days"] == NO_HISTORY_RECENCY).all()
+
+
+def test_view_sample_ratio_zero_has_no_view_label_column(events):
+    """Default (0.0) preserva o comportamento anterior à spec 002."""
+    labeled = build_labeled_dataset(events, seed=1)
+    assert VIEW_TARGET_COL not in labeled.columns
+
+
+def test_view_label_added_when_ratio_positive(events):
+    """Positivos fortes e views amostradas viram view_label=1; negativos, 0."""
+    labeled = build_labeled_dataset(events, seed=1, view_sample_ratio=1.0)
+    assert VIEW_TARGET_COL in labeled.columns
+    strong_pos = labeled[labeled[TARGET_COL] == 1.0]
+    assert (strong_pos[VIEW_TARGET_COL] == 1.0).all()
+
+    zero_target = labeled[labeled[TARGET_COL] == 0.0]
+    # dentro de label=0 coexistem negativos de fato (view_label=0) e views
+    # amostradas como sinal auxiliar (view_label=1).
+    assert (zero_target[VIEW_TARGET_COL] == 0.0).any()
+    assert (zero_target[VIEW_TARGET_COL] == 1.0).any()
+
+
+def test_sample_view_rows_respects_ratio_and_cap(events):
+    n_views_available = int((events["event"] == "view").sum())
+    capped = _sample_view_rows(events, n_positives=1000, view_sample_ratio=10.0, seed=1)
+    assert len(capped) == n_views_available
+    assert (capped["event"] == "view").all()
+
+    small = _sample_view_rows(events, n_positives=2, view_sample_ratio=1.0, seed=1)
+    assert len(small) == 2
 
 
 def test_raises_without_positives():
