@@ -2,7 +2,10 @@
 
 Registrado na Factory com o nome "ncf". Arquitetura (FR-004, D4):
 embeddings de usuário e item (+ categoria do item, para cold-start de
-conteúdo) concatenados às features contínuas escaladas → MLP → logit.
+conteúdo) concatenados às features contínuas escaladas → MLP → duas
+cabeças de saída (spec 002, FR-002/D2): ``strong`` (interação forte —
+addtocart/transaction, cenário principal) e ``view`` (interação ampla,
+auxiliar) compartilhando o mesmo trunk/embeddings.
 
 O ÚLTIMO índice de cada tabela de embedding (``n_users``/``n_items``/
 ``n_categories``) é reservado para "unknown": ids ausentes do treino são
@@ -19,6 +22,7 @@ import copy
 
 import numpy as np
 import torch
+import torch.nn.functional as F  # noqa: N812 (convenção padrão do PyTorch)
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 from torch import nn
@@ -31,6 +35,9 @@ from src.models.factory import ModelFactory
 _PREDICT_BATCH = 65_536
 _MIN_IMPROVEMENT = 1e-5
 
+# Índice do logit retornado por _NCFNet.forward() para cada cabeça (D2).
+_HEAD_INDEX = {"strong": 0, "view": 1}
+
 # Features de cauda pesada (power-law): log1p antes do scaler, senão a
 # informação de popularidade fica espremida em z-scores inúteis.
 _LOG_SCALE_COLS = ("frequency", "engagement_score", "view_count")
@@ -38,7 +45,12 @@ _LOG_SCALE_IDX = [CONT_COLS.index(c) for c in _LOG_SCALE_COLS]
 
 
 class _NCFNet(nn.Module):
-    """Rede interna: embeddings (user, item, categoria) ⊕ contínuas → logit."""
+    """Rede interna: embeddings + contínuas → trunk → duas cabeças (D2).
+
+    Embeddings (user, item, categoria) concatenados às contínuas passam
+    por um trunk compartilhado; duas cabeças lineares (``strong``,
+    ``view``) pontuam a partir da mesma representação latente.
+    """
 
     def __init__(
         self,
@@ -61,8 +73,9 @@ class _NCFNet(nn.Module):
         for dim in hidden_dims:
             layers += [nn.Linear(prev, dim), nn.ReLU(), nn.Dropout(dropout)]
             prev = dim
-        layers.append(nn.Linear(prev, 1))
-        self.mlp = nn.Sequential(*layers)
+        self.trunk = nn.Sequential(*layers)
+        self.strong_head = nn.Linear(prev, 1)
+        self.view_head = nn.Linear(prev, 1)
 
     def forward(
         self,
@@ -70,12 +83,13 @@ class _NCFNet(nn.Module):
         items: torch.Tensor,
         cats: torch.Tensor,
         cont: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         x = torch.cat(
             [self.user_emb(users), self.item_emb(items), self.cat_emb(cats), cont],
             dim=1,
         )
-        return self.mlp(x).squeeze(-1)
+        h = self.trunk(x)
+        return self.strong_head(h).squeeze(-1), self.view_head(h).squeeze(-1)
 
 
 @ModelFactory.register("ncf")
@@ -99,6 +113,10 @@ class NCFRecommender(RecommenderBase):
         dropout: Taxa de dropout.
         unknown_dropout: Fração de ids de treino roteada para o índice
             unknown — treina o embedding de cold-start (D4).
+        view_loss_weight: Peso (λ) da loss auxiliar de ``view`` somada à
+            loss principal (interação forte) — spec 002, FR-002/D3. Só tem
+            efeito se ``y_view`` for passado a ``fit()``; default 0.0
+            (multi-task desligado, comportamento idêntico ao anterior).
         lr: Taxa de aprendizado (Adam).
         weight_decay: Regularização L2 do Adam.
         epochs: Máximo de épocas.
@@ -120,6 +138,7 @@ class NCFRecommender(RecommenderBase):
         hidden_dims: list[int] | None = None,
         dropout: float = 0.2,
         unknown_dropout: float = 0.0,
+        view_loss_weight: float = 0.0,
         lr: float = 1e-3,
         weight_decay: float = 0.0,
         epochs: int = 20,
@@ -146,6 +165,7 @@ class NCFRecommender(RecommenderBase):
         self.hidden_dims = hidden_dims or [128, 64]
         self.dropout = dropout
         self.unknown_dropout = unknown_dropout
+        self.view_loss_weight = view_loss_weight
         self.lr = lr
         self.weight_decay = weight_decay
         self.epochs = epochs
@@ -155,6 +175,7 @@ class NCFRecommender(RecommenderBase):
         self.contract_version = CONTRACT_VERSION
         self._scaler: StandardScaler | None = None
         self._net: _NCFNet | None = None
+        self._multitask: bool = False
 
     def _route_ids(
         self, ids: np.ndarray, known: np.ndarray, vocab_size: int
@@ -179,7 +200,13 @@ class NCFRecommender(RecommenderBase):
         assert self._scaler is not None, "Chame fit() antes."
         users = self._route_ids(X[:, 0], self.known_users, self.n_users)
         items = self._route_ids(X[:, 1], self.known_items, self.n_items)
-        cats = self.item_categories[items]
+        # Categoria é consultada pelo item_idx REAL (clipado ao intervalo
+        # válido), não pelo índice já roteado p/ "unknown" — um item ausente
+        # do treino mas com categoria conhecida (estágio content) não pode
+        # ter esse sinal descartado só porque seu embedding é o "unknown"
+        # compartilhado (spec 002, FR-006/D4).
+        real_items = np.clip(X[:, 1].astype("int64"), 0, self.n_items)
+        cats = self.item_categories[real_items]
         cont = self._scaler.transform(self._transform_cont(X)).astype("float32")
         return users, items, cats, cont
 
@@ -189,6 +216,7 @@ class NCFRecommender(RecommenderBase):
         y: np.ndarray,
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
+        y_view: np.ndarray | None = None,
     ) -> NCFRecommender:
         """Treina a rede com early stopping por métrica de VALIDAÇÃO (FR-010).
 
@@ -196,16 +224,23 @@ class NCFRecommender(RecommenderBase):
             X: Matriz de treino na ordem do contrato de features.
             y: Rótulos binários (1 = positivo, 0 = negativo amostrado).
             X_val: Matriz de validação (mesma ordem). Se fornecida, o early
-                stopping usa o ROC-AUC de validação; senão, a loss de treino.
-            y_val: Rótulos de validação.
+                stopping usa o ROC-AUC de validação (sempre sobre a cabeça
+                ``strong`` — FR-005); senão, a loss de treino.
+            y_val: Rótulos de validação (interação forte).
+            y_view: Rótulos auxiliares de ``view`` alinhados a ``y`` (spec
+                002, FR-001). Se ``None`` (default), a loss auxiliar é
+                ignorada e o comportamento é idêntico ao de antes do
+                multi-task — a cabeça ``view`` fica com sua init aleatória,
+                sem receber gradiente.
         """
         torch.manual_seed(self.random_state)
         X = np.asarray(X, dtype="float32")
         y = np.asarray(y, dtype="float32")
+        self._multitask = y_view is not None
         self._scaler = StandardScaler().fit(self._transform_cont(X))
         users, items, cats, cont = self._split_matrix(X)
         users, items, cats = self._apply_unknown_dropout(users, items)
-        dataset = RetailRocketDataset(users, items, cont, y, cats=cats)
+        dataset = RetailRocketDataset(users, items, cont, y, cats=cats, y_view=y_view)
         loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=self.batch_size,
@@ -281,6 +316,32 @@ class NCFRecommender(RecommenderBase):
                     break
         self._net.load_state_dict(best_state)
 
+    def _combined_loss(
+        self,
+        strong_logit: torch.Tensor,
+        view_logit: torch.Tensor,
+        yb: torch.Tensor,
+        yb_view: torch.Tensor,
+        loss_fn: nn.Module,
+    ) -> torch.Tensor:
+        """Loss combinada (spec 002, D3, revisada por diagnóstico empírico).
+
+        Linhas de ``view`` amostrado (``yb_view == 1 and yb == 0`` — visto
+        mas não convertido) NÃO entram na loss da cabeça ``strong``: só
+        alimentam a cabeça ``view``. A primeira versão desta loss incluía
+        essas linhas como negativos também da cabeça forte, o que ensinava
+        o modelo a tratar "visto mas não convertido" como equivalente a
+        "nunca visto" — e regrediu o cenário principal (warm/forte) da
+        spec `001-recommender-quality` (AC-2), confirmado por ablation.
+        """
+        if not self._multitask:
+            return loss_fn(strong_logit, yb)
+        strong_mask = (~((yb_view == 1) & (yb == 0))).float()
+        per_row = F.binary_cross_entropy_with_logits(strong_logit, yb, reduction="none")
+        n_masked = strong_mask.sum().clamp(min=1)
+        strong_loss = (per_row * strong_mask).sum() / n_masked
+        return strong_loss + self.view_loss_weight * loss_fn(view_logit, yb_view)
+
     def _train_epoch(
         self,
         loader: torch.utils.data.DataLoader,
@@ -291,17 +352,26 @@ class NCFRecommender(RecommenderBase):
         assert self._net is not None
         self._net.train()
         total = 0.0
-        for users, items, cats, cont, yb in loader:
+        for users, items, cats, cont, yb, yb_view in loader:
             optimizer.zero_grad()
-            loss = loss_fn(self._net(users, items, cats, cont), yb)
+            strong_logit, view_logit = self._net(users, items, cats, cont)
+            loss = self._combined_loss(strong_logit, view_logit, yb, yb_view, loss_fn)
             loss.backward()
             optimizer.step()
             total += loss.item()
         return total / max(len(loader), 1)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Retorna a probabilidade de interação positiva por par (user, item)."""
+    def predict_proba(self, X: np.ndarray, head: str = "strong") -> np.ndarray:
+        """Retorna a probabilidade de interação por par (user, item).
+
+        Args:
+            X: Matriz na ordem do contrato de features.
+            head: Qual cabeça pontuar — ``"strong"`` (interação forte,
+                default, usado no cenário principal e no early stopping —
+                FR-005) ou ``"view"`` (interação ampla, spec 002, FR-004).
+        """
         assert self._net is not None, "Chame fit() antes de predict_proba()"
+        head_idx = _HEAD_INDEX[head]
         self._net.eval()
         X = np.asarray(X, dtype="float32")
         users, items, cats, cont = self._split_matrix(X)
@@ -315,9 +385,11 @@ class NCFRecommender(RecommenderBase):
                     torch.from_numpy(cats[start:end]),
                     torch.from_numpy(cont[start:end]),
                 )
-                out[start:end] = torch.sigmoid(logits).numpy()
+                out[start:end] = torch.sigmoid(logits[head_idx]).numpy()
         return out
 
-    def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+    def predict(
+        self, X: np.ndarray, threshold: float = 0.5, head: str = "strong"
+    ) -> np.ndarray:
         """Retorna predições binárias (0 ou 1) com base no threshold."""
-        return (self.predict_proba(X) >= threshold).astype(int)
+        return (self.predict_proba(X, head=head) >= threshold).astype(int)
