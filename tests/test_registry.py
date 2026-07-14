@@ -13,7 +13,7 @@ import pytest
 from mlflow.tracking import MlflowClient
 
 from src.config import settings as settings_module
-from src.models.mlp import MLPRecommender
+from src.models.baselines import LogisticRecommender
 from src.utils import mlflow_tracking
 
 
@@ -33,7 +33,7 @@ def _log_run(tmp_path: Path, val_auc: float) -> str:
     """Cria um run com métrica val_auc e artefato model/model.pkl."""
     with mlflow.start_run() as run:
         mlflow.log_metric("val_auc", val_auc)
-        model = MLPRecommender(input_dim=4, hidden_dims=[8], epochs=2)
+        model = LogisticRecommender(random_state=0)
         rng = np.random.default_rng(0)
         model.fit(
             rng.random((16, 4)).astype("float32"),
