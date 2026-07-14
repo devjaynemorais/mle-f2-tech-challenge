@@ -132,9 +132,7 @@ def positives_by_user(
 
 def _context_ts_by_user(test: pd.DataFrame) -> dict[int, pd.Timestamp]:
     """Timestamp de pontuação por usuário: seu primeiro evento de teste."""
-    return {
-        int(u): ts for u, ts in test.groupby("user_idx")["timestamp"].min().items()
-    }
+    return {int(u): ts for u, ts in test.groupby("user_idx")["timestamp"].min().items()}
 
 
 def _weighted_overall(
@@ -186,6 +184,12 @@ def _eval_relevance(
     }
 
 
+# Cabeça do NCF usada para pontuar cada definição de relevância (spec 002,
+# FR-004, D6): relevância forte usa a cabeça principal; ampla usa a
+# auxiliar de ``view`` — cada uma otimizada para o que está sendo medido.
+_RELEVANCE_HEAD = {"strong": "strong", "broad": "view"}
+
+
 def ranking_metrics(
     model: RecommenderBase,
     train: pd.DataFrame,
@@ -207,10 +211,6 @@ def ranking_metrics(
     """
     lookup = HistoryFeatureLookup(history)
     context_ts = _context_ts_by_user(test)
-    scorers: dict[str, PairScorer] = {
-        "model": make_model_scorer(model, lookup, context_ts),
-        "popularity": make_popularity_scorer(lookup),
-    }
     seen = build_user_seen(pd.concat([history, test], ignore_index=True))
     train_users = {int(u) for u in train["user_idx"].unique()}
     relevances = {
@@ -222,6 +222,12 @@ def ranking_metrics(
     out = {}
     for name, positives in relevances.items():
         logger.info("Ranking (%s): %d usuários", name, len(positives))
+        scorers: dict[str, PairScorer] = {
+            "model": make_model_scorer(
+                model, lookup, context_ts, head=_RELEVANCE_HEAD[name]
+            ),
+            "popularity": make_popularity_scorer(lookup),
+        }
         out[name] = _eval_relevance(
             scorers, positives, seen, lookup.catalog, train_users, eval_p
         )
@@ -285,9 +291,7 @@ def run() -> None:
         seed=labeling_p["seed"],
     )
     y_test = labeled_test[TARGET_COL].to_numpy(dtype="float32")
-    y_proba = model.predict_proba(
-        labeled_test[FEATURE_COLS].to_numpy(dtype="float32")
-    )
+    y_proba = model.predict_proba(labeled_test[FEATURE_COLS].to_numpy(dtype="float32"))
     metrics = {
         "classification": compute_metrics(y_test, y_proba),
         "ranking": ranking_metrics(model, train, history, test, eval_p),

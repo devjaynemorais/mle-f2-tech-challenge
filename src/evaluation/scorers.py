@@ -13,6 +13,7 @@ import pandas as pd
 from src.data.feature_contract import FEATURE_COLS, NO_HISTORY_RECENCY
 from src.evaluation.ranking import PairScorer
 from src.models.base import RecommenderBase
+from src.models.mlp import NCFRecommender
 
 _SECONDS_PER_DAY = 86400.0
 _SCORING_CHUNK = 500_000
@@ -38,6 +39,15 @@ class HistoryFeatureLookup:
         )
         views = history.loc[history["event"] == "view"]
         self._item_views = views.groupby("item_idx").size()
+        pair_agg = views.groupby(["user_idx", "item_idx"]).agg(
+            count=("timestamp", "size"), last_ts=("timestamp", "max")
+        )
+        self._pair_state: dict[tuple[int, int], tuple[int, pd.Timestamp]] = {
+            (int(u), int(i)): (int(c), last_ts)
+            for (u, i), c, last_ts in zip(
+                pair_agg.index, pair_agg["count"], pair_agg["last_ts"], strict=True
+            )
+        }
         self._catalog = np.sort(history["item_idx"].unique()).astype("int64")
 
     @property
@@ -51,9 +61,37 @@ class HistoryFeatureLookup:
 
     def view_counts(self, items: np.ndarray) -> np.ndarray:
         """Total de views por item no histórico (0 para desconhecidos)."""
-        return (
-            pd.Series(items).map(self._item_views).fillna(0.0).to_numpy("float64")
-        )
+        return pd.Series(items).map(self._item_views).fillna(0.0).to_numpy("float64")
+
+    def pair_features(
+        self, users: np.ndarray, items: np.ndarray, ts: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Contagem total e recência (vs. ``ts``) de views do par (user, item).
+
+        Mesmo estilo de ``view_counts`` (agregado sobre todo o histórico, não
+        um cursor *as-of* por linha) — consistente com o par não ter menos
+        precisão que o par-a-par já usado para ``view_count``/``recency_days``.
+
+        Args:
+            users: user_idx por linha.
+            items: item_idx por linha (alinhado a users).
+            ts: Timestamp de contexto por linha (alinhado a users/items).
+
+        Returns:
+            Tupla (user_item_view_count, user_item_recency_days).
+        """
+        counts = np.empty(len(users), dtype="float64")
+        recency = np.empty(len(users), dtype="float64")
+        for pos, (u, i, t) in enumerate(zip(users, items, ts, strict=True)):
+            state = self._pair_state.get((int(u), int(i)))
+            if state is None:
+                counts[pos] = 0.0
+                recency[pos] = NO_HISTORY_RECENCY
+            else:
+                count, last_ts = state
+                counts[pos] = count
+                recency[pos] = (t - last_ts) / np.timedelta64(1, "D")
+        return counts, recency
 
     def matrix(
         self,
@@ -79,6 +117,7 @@ class HistoryFeatureLookup:
             "timedelta64[s]"
         ).astype("float64") / _SECONDS_PER_DAY
         recency = np.where(np.isnan(delta), NO_HISTORY_RECENCY, delta)
+        pair_count, pair_recency = self.pair_features(users, items, ts.to_numpy())
         cols = {
             "user_idx": np.asarray(users, dtype="float64"),
             "item_idx": np.asarray(items, dtype="float64"),
@@ -90,6 +129,8 @@ class HistoryFeatureLookup:
             ),
             "recency_days": recency,
             "view_count": self.view_counts(items),
+            "user_item_view_count": pair_count,
+            "user_item_recency_days": pair_recency,
         }
         return np.column_stack([cols[c] for c in FEATURE_COLS]).astype("float32")
 
@@ -98,6 +139,7 @@ def make_model_scorer(
     model: RecommenderBase,
     lookup: HistoryFeatureLookup,
     context_ts_by_user: dict[int, pd.Timestamp] | None = None,
+    head: str = "strong",
 ) -> PairScorer:
     """Scorer que pontua pares com o modelo sobre a matriz do contrato.
 
@@ -105,6 +147,9 @@ def make_model_scorer(
         model: Modelo treinado (predict_proba sobre FEATURE_COLS).
         lookup: Estado derivado do histórico.
         context_ts_by_user: Timestamp de contexto por usuário.
+        head: Qual cabeça do NCF pontuar — ``"strong"`` (default, cenário
+            principal) ou ``"view"`` (relevância ampla, spec 002, FR-004).
+            Ignorado para modelos sem múltiplas cabeças (ex.: baselines).
 
     Returns:
         Função (users, items) → scores.
@@ -117,7 +162,10 @@ def make_model_scorer(
             matrix = lookup.matrix(
                 users[start:end], items[start:end], context_ts_by_user
             )
-            out[start:end] = model.predict_proba(matrix)
+            if isinstance(model, NCFRecommender):
+                out[start:end] = model.predict_proba(matrix, head=head)
+            else:
+                out[start:end] = model.predict_proba(matrix)
         return out
 
     return scorer
