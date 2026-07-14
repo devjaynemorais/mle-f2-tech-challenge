@@ -42,12 +42,12 @@ stages:
       nfiles: 1
     - path: src/data/feature_contract.py
       hash: md5
-      md5: 21acbca92df3082ab19b3d74b8b28d38
-      size: 1326
+      md5: 54b6051091fec613c39a2f33c8d51cc6
+      size: 1717
     - path: src/data/feature_engineering.py
       hash: md5
-      md5: 9159029de0113416a4a48606462dbadb
-      size: 4147
+      md5: 5239f76e8cd725696a2aa7608c362c8a
+      size: 5443
     - path: src/features/build_features.py
       hash: md5
       md5: 3446169280d773f0e17d639b18e7467d
@@ -63,46 +63,46 @@ stages:
     outs:
     - path: data/processed/
       hash: md5
-      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
-      size: 29908493
+      md5: b858123d52e96e7b9de8a5f4599a816a.dir
+      size: 34702801
       nfiles: 3
   train:
     cmd: python -m src.training.trainer
     deps:
     - path: data/processed/
       hash: md5
-      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
-      size: 29908493
+      md5: b858123d52e96e7b9de8a5f4599a816a.dir
+      size: 34702801
       nfiles: 3
     - path: src/data/dataset.py
       hash: md5
-      md5: 75a3a64741649a0a0e9d9f281b7ff06b
-      size: 2703
+      md5: e2e1777c8debc11edf0489984a72d382
+      size: 3228
     - path: src/data/feature_contract.py
       hash: md5
-      md5: 21acbca92df3082ab19b3d74b8b28d38
-      size: 1326
+      md5: 54b6051091fec613c39a2f33c8d51cc6
+      size: 1717
     - path: src/data/labeling.py
       hash: md5
-      md5: 6478690f405dd1325ea3797239de1bc3
-      size: 7438
+      md5: d19536208f9a7c9d0e2fce8f8ea4d031
+      size: 12013
     - path: src/evaluation/ranking.py
       hash: md5
       md5: 157420deff02fa38c0dc76ca95a0f659
       size: 7744
     - path: src/evaluation/scorers.py
       hash: md5
-      md5: bdd1b9789478ff0e3a7158c387584d8c
-      size: 5012
+      md5: 2ad557671a1c1b71d2ebd93a438440de
+      size: 7324
     - path: src/models/
       hash: md5
-      md5: 2d757bbd40d792b995c6ae96a978e49e.dir
-      size: 52060
+      md5: 27063b213bb8a41279353e104ef0b439.dir
+      size: 60027
       nfiles: 12
     - path: src/training/trainer.py
       hash: md5
-      md5: fab243bfabe3d0284c614df0eac880c4
-      size: 9285
+      md5: 067d4b92ea9d7060f6529ab000799a17
+      size: 10124
     params:
       params.yaml:
         eval:
@@ -116,6 +116,7 @@ stages:
           num_negatives: 8
           popularity_alpha: 0.0
           seed: 42
+          view_sample_ratio: 8
         train:
           model_type: ncf
           epochs: 40
@@ -129,51 +130,52 @@ stages:
           - 64
           dropout: 0.2
           unknown_dropout: 0.1
+          view_loss_weight: 0.3
           early_stopping_patience: 5
           random_state: 42
     outs:
     - path: metrics/train_metrics.json
       hash: md5
-      md5: a29b1123c099df954ecb720a7d42cbfc
-      size: 100
+      md5: 5c80e9221a133f857bdf72c0279f83de
+      size: 103
     - path: models/artifacts/
       hash: md5
-      md5: 3355764b8c83db1a2b3ca32c13965421.dir
-      size: 48653758
+      md5: f66ea5b3c25a5884f559aab01c6aa276.dir
+      size: 48655884
       nfiles: 1
   evaluate:
     cmd: python -m src.evaluation.evaluate
     deps:
     - path: data/processed/
       hash: md5
-      md5: 64c006f19fcdf48f16eb7f5c7604c05d.dir
-      size: 29908493
+      md5: b858123d52e96e7b9de8a5f4599a816a.dir
+      size: 34702801
       nfiles: 3
     - path: models/artifacts/
       hash: md5
-      md5: 3355764b8c83db1a2b3ca32c13965421.dir
-      size: 48653758
+      md5: f66ea5b3c25a5884f559aab01c6aa276.dir
+      size: 48655884
       nfiles: 1
     - path: src/data/feature_contract.py
       hash: md5
-      md5: 21acbca92df3082ab19b3d74b8b28d38
-      size: 1326
+      md5: 54b6051091fec613c39a2f33c8d51cc6
+      size: 1717
     - path: src/data/labeling.py
       hash: md5
-      md5: 6478690f405dd1325ea3797239de1bc3
-      size: 7438
+      md5: d19536208f9a7c9d0e2fce8f8ea4d031
+      size: 12013
     - path: src/evaluation/evaluate.py
       hash: md5
-      md5: 9872b8b7fa98698c223e966d80fbc56c
-      size: 10482
+      md5: ac9451d9c7825ae8529ed7abd6b693f5
+      size: 10812
     - path: src/evaluation/ranking.py
       hash: md5
       md5: 157420deff02fa38c0dc76ca95a0f659
       size: 7744
     - path: src/evaluation/scorers.py
       hash: md5
-      md5: bdd1b9789478ff0e3a7158c387584d8c
-      size: 5012
+      md5: 2ad557671a1c1b71d2ebd93a438440de
+      size: 7324
     params:
       params.yaml:
         eval:
@@ -187,15 +189,16 @@ stages:
           num_negatives: 8
           popularity_alpha: 0.0
           seed: 42
+          view_sample_ratio: 8
     outs:
     - path: metrics/eval_metrics.json
       hash: md5
-      md5: d7afe735fe1d488d719a7c4bbf9faaa9
-      size: 5615
+      md5: 6edc882349b32b19703908e691d7e20b
+      size: 5606
     - path: metrics/plots/
       hash: md5
-      md5: 314a5f789f6089a9c6ea0c25f983d7c9.dir
-      size: 9694902
+      md5: b44511cbe0d4513804d154c8077703e5.dir
+      size: 8565543
       nfiles: 2
   content:
     cmd: python -m src.data.content_etl
@@ -223,12 +226,12 @@ stages:
     deps:
     - path: metrics/eval_metrics.json
       hash: md5
-      md5: d7afe735fe1d488d719a7c4bbf9faaa9
-      size: 5615
+      md5: 6edc882349b32b19703908e691d7e20b
+      size: 5606
     - path: metrics/train_metrics.json
       hash: md5
-      md5: a29b1123c099df954ecb720a7d42cbfc
-      size: 100
+      md5: 5c80e9221a133f857bdf72c0279f83de
+      size: 103
     - path: src/models/registry.py
       hash: md5
       md5: bd5cddc8aa904891cebc8d0f719af92c
@@ -250,5 +253,5 @@ stages:
     outs:
     - path: models/promoted_model.json
       hash: md5
-      md5: 2c56487d6fd36f8fe2bfc9c69f774d83
-      size: 206
+      md5: 649f62427d8222ef368932c6476530c9
+      size: 207
