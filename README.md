@@ -30,7 +30,7 @@ mle-f2-tech-challenge/
 │   ├── content/          # Saída do estágio content (item_categories.parquet)
 │   ├── processed/        # Splits train/val/test (saída do feature_eng)
 │   └── external/         # Dados externos de referência
-├── docs/                 # how_to_run.md, eda.md, preprocessing.md, tests.md,
+├── docs/                 # training.md, eda.md, preprocessing.md, tests.md,
 │                         # make.md, exploration_doc.md, model_card.md,
 │                         # feature_selection.md, architecture.md
 ├── metrics/              # Métricas DVC (JSON) e plots
@@ -64,21 +64,27 @@ mle-f2-tech-challenge/
 
 ## Início Rápido
 
-> Guia completo de execução (passo a passo, Windows, troubleshooting):
-> [`docs/how_to_run.md`](docs/how_to_run.md). Para validar os critérios de
+> Para treinar/ajustar só o modelo (hiperparâmetros, arquitetura, tuning):
+> [`docs/training.md`](docs/training.md). Para validar os critérios de
 > aceite da spec do recomendador:
 > [`specs/001-recommender-quality/quickstart.md`](specs/001-recommender-quality/quickstart.md).
 
-**Pré-requisitos:** Python 3.11+, pip, Make, Docker
+| Requisito | Versão | Verificar |
+|-----------|--------|-----------|
+| Python | ≥ 3.11 | `python --version` |
+| Poetry | 1.8.3 | `poetry --version` |
+| Git | qualquer | `git --version` |
+| Docker (opcional) | com compose v2 | `docker compose version` |
 
 ```bash
 # 1. Instalar Poetry 1.8.3 e todas as dependências (prod + dev) em .venv/
 make env
 
-# 2. Configurar variáveis de ambiente
-cp .env.example .env
+# 2. Configurar variáveis de ambiente e validar (Pydantic Settings + dependências)
+cp .env.example .env      # Windows: copy .env.example .env
+make validate-env
 
-# 3. Obter os dados
+# 3. Obter os dados (ver estrutura esperada em "Dataset" abaixo)
 dvc pull
 # ou: python scripts/download_dataset.py  (requer KAGGLE_USERNAME e KAGGLE_KEY no .env)
 
@@ -87,12 +93,32 @@ dvc pull
 make mlflow
 # Alternativa sem servidor local: use Docker → make compose-pipeline (sobe o MLflow por você)
 
-# 5. Validar ambiente e rodar pipeline completo (em outro terminal)
+# 5. Rodar o pipeline completo (em outro terminal; já inclui validate-env)
 make setup
 ```
 
 > **Nota:** o estágio `train` falha com `WinError 10061 / Connection refused` se o
 > MLflow não estiver rodando. Deixe `make mlflow` ativo antes de `make setup`.
+
+### Windows/PowerShell — dois cuidados no `dvc repro`
+
+1. **Python da venv no PATH** — o DVC invoca um `python` filho; se o PATH
+   resolver outro Python, os estágios falham com `ModuleNotFoundError`
+   (ex.: `pydantic_settings`). Prefixe o PATH ou use `poetry run`:
+   ```powershell
+   $env:PATH = "$PWD\.venv\Scripts;$env:PATH"
+   ```
+2. **Force UTF-8 no console** — o MLflow imprime emoji na URL do run, o que
+   quebra no console cp1252 padrão (`UnicodeEncodeError` no fim do treino):
+   ```powershell
+   $env:PYTHONUTF8 = "1"
+   ```
+
+Comando completo:
+
+```powershell
+$env:PATH = "$PWD\.venv\Scripts;$env:PATH"; $env:PYTHONUTF8 = "1"; dvc repro
+```
 
 ## Pipeline DVC
 
@@ -114,20 +140,20 @@ Reproduzir do zero:
 dvc repro
 ```
 
-Estágios individuais:
+O DVC só reexecuta o que mudou (código, dados ou `params.yaml` — confira
+com `dvc status`). Duração aproximada na base completa: ~8–12 min (o
+`content` domina a primeira execução; depois fica cacheado).
+
+Estágios individuais (debug):
 
 ```bash
 make preprocess
 poetry run python -m src.data.content_etl   # estágio content (categoryid)
 make feature-eng
-make train
+make train        # detalhes/hiperparâmetros: docs/training.md
 make evaluate
 make promote
 ```
-
-> **Windows/PowerShell:** rode o DVC via `poetry run dvc repro` (garante o
-> Python da venv) e com `$env:PYTHONUTF8 = "1"` (evita `UnicodeEncodeError`
-> do MLflow no console cp1252). Detalhes em [`docs/how_to_run.md`](docs/how_to_run.md).
 
 ## Desenvolvimento
 
@@ -194,10 +220,16 @@ curl "http://localhost:8000/recommend?user_id=11883&top_k=5"
 ## Docker
 
 ```bash
-make compose-build   # builda as imagens
-make compose-full    # sobe mlflow + train + api
-make compose-down    # para e remove os containers
+make compose-build      # builda a imagem compartilhada
+make compose-full       # sobe mlflow + train + api
+make compose-pipeline   # sobe mlflow e roda train → evaluate → promote (jobs one-shot)
+make compose-down       # para e remove os containers
 ```
+
+Requer `.env` (copie de `.env.example`; dentro do compose o tracking URI é
+`http://mlflow:5000`). Os dados de `data/processed/` precisam existir no
+host (o compose monta o diretório) — rode os estágios de dados antes ou use
+`dvc pull`.
 
 Serviços do `docker-compose.yml`:
 
@@ -211,12 +243,19 @@ Serviços do `docker-compose.yml`:
 ## Dataset
 
 **RetailRocket E-commerce Dataset** — interações de usuários em loja virtual.
+Baixe em [kaggle.com/datasets/retailrocket/ecommerce-dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
+(ou `dvc pull`, se houver remote DVC configurado) e coloque em `data/raw/`:
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `events.csv` | ~2,8M interações usuário-item com timestamp e tipo de evento |
-| `item_properties_part1/2.csv` | Propriedades dos itens ao longo do tempo |
-| `category_tree.csv` | Hierarquia de categorias |
+| Arquivo | Tamanho | Descrição |
+|---------|---------|-----------|
+| `events.csv` | ~90 MB | ~2,8M interações usuário-item com timestamp e tipo de evento — **obrigatório** |
+| `item_properties_part1.csv` | ~460 MB | Propriedades dos itens ao longo do tempo — usado pelo estágio `content` (categoria) |
+| `item_properties_part2.csv` | ~390 MB | idem |
+| `category_tree.csv` | ~14 KB | Hierarquia de categorias (não usada pelo pipeline) |
+
+> Sem os `item_properties_*`, o estágio `content` gera um parquet vazio e o
+> modelo treina sem embedding de categoria (com aviso no log). Sem o
+> `events.csv` o pipeline não roda.
 
 Principais características (ver [`docs/eda.md`](docs/eda.md)):
 
@@ -225,13 +264,9 @@ Principais características (ver [`docs/eda.md`](docs/eda.md)):
 - Distribuição de interações segue **power-law**: mediana de ~2 interações por usuário
 - Funil de conversão: view → addtocart (~4–5%) → transaction (~35–45%)
 
-Download: [kaggle.com/datasets/retailrocket/ecommerce-dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
-
-Após baixar, colocar os arquivos em `data/raw/` e rodar `dvc repro`.
-
 ## Pré-Processamento e Features
 
-Detalhes completos em [`docs/preprocessing.md`](docs/preprocessing.md). Racional de escolha de cada feature, gaps e candidatas a adicionar em [`docs/feature_selection.md`](docs/feature_selection.md).
+Detalhes completos em [`docs/preprocessing.md`](docs/preprocessing.md). Racional de escolha de cada feature e candidatas a adicionar em [`docs/feature_selection.md`](docs/feature_selection.md).
 
 **Estágio `preprocess`:** filtra usuários com < 5 interações, encoda `visitorid` → `user_idx` e `itemid` → `item_idx` (base-0, contíguos), ordena por timestamp.
 
@@ -272,6 +307,23 @@ segmentando usuários **warm** (com histórico de treino) vs. **cold**:
 
 Além disso, o teste rotulado reporta ROC-AUC, Average Precision, F1,
 Precisão e Recall. Resultados e limitações: [`docs/model_card.md`](docs/model_card.md).
+
+**Conferir métricas e critérios de aceite:**
+
+```bash
+dvc metrics show                 # ou abra metrics/eval_metrics.json
+```
+
+- **AC-2 (classificação):** `classification.roc_auc ≥ 0.70` no teste.
+- **AC-1 (ranking, cenário principal):** em `ranking.strong.model.warm`,
+  `ndcg_at_{10,20}` e `recall_at_{10,20}` maiores que os equivalentes em
+  `ranking.strong.popularity.warm`.
+- Segmentos: `warm` = usuário com histórico no treino; `cold` = sem
+  (coberto pelo fallback de popularidade no serving).
+
+No MLflow (`http://localhost:5000`): runs de treino (métricas
+`val_auc`/`val_ndcg_at_20`), run `evaluate` (métricas achatadas) e a aba
+**Models** com `retailrocket_recommender` em Production.
 
 ## Design Patterns
 
@@ -323,6 +375,17 @@ eval:
 registry:
   metric: val_ndcg_at_20    # métrica de validação usada na promoção
 ```
+
+## Troubleshooting
+
+| Sintoma | Causa | Correção |
+|---------|-------|----------|
+| `ModuleNotFoundError` num estágio DVC | `python` do PATH ≠ venv | `poetry run dvc repro` ou prefixar o PATH (seção "Windows/PowerShell" acima) |
+| `UnicodeEncodeError ... charmap` no fim do treino | console Windows cp1252 × emoji do MLflow | `$env:PYTHONUTF8 = "1"` |
+| `train` falha com conexão recusada | MLflow não está de pé | `make mlflow` antes do `dvc repro`/`make setup` |
+| API sobe "degradada" (`/health` → `degraded`) | sem modelo Production nem `promoted_model.json` | rode o pipeline até `promote` |
+| `dvc repro` reexecuta tudo do nada | mudou `params.yaml`/código rastreado | esperado — confira `dvc status` |
+| Porta 5000/8000 ocupada | outro serviço | `MLFLOW_PORT=`/`API_PORT=` (seções "Serviços Locais") |
 
 ## Critérios de Avaliação
 
