@@ -32,7 +32,8 @@ mle-f2-tech-challenge/
 │   └── external/         # Dados externos de referência
 ├── docs/                 # training.md, eda.md, preprocessing.md, tests.md,
 │                         # make.md, exploration_doc.md, model_card.md,
-│                         # feature_selection.md, architecture.md
+│                         # feature_selection.md, architecture.md,
+│                         # presentation.html (deck de defesa técnica)
 ├── metrics/              # Métricas DVC (JSON) e plots
 ├── models/
 │   ├── artifacts/        # Artefatos do modelo por run MLflow
