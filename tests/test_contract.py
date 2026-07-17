@@ -66,9 +66,9 @@ def test_serving_matrix_matches_history_lookup(events):
     for pos, col in enumerate(FEATURE_COLS):
         if col in context_cols:
             continue
-        assert serving_matrix[:, pos] == pytest.approx(
-            eval_matrix[:, pos], rel=1e-6
-        ), f"coluna divergente entre serving e avaliação: {col}"
+        assert serving_matrix[:, pos] == pytest.approx(eval_matrix[:, pos], rel=1e-6), (
+            f"coluna divergente entre serving e avaliação: {col}"
+        )
 
 
 def test_serving_user_state_is_current(events):

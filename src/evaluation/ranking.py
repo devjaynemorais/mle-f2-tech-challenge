@@ -162,9 +162,7 @@ def _candidate_lists(
         excluded = set(seen_by_user.get(user, set())) | {int(i) for i in pos}
         negs = sample_unseen_items(catalog, excluded, num_negatives, rng)
         items = np.concatenate([pos.astype("int64"), negs])
-        labels = np.concatenate(
-            [np.ones(len(pos)), np.zeros(len(negs))]
-        )
+        labels = np.concatenate([np.ones(len(pos)), np.zeros(len(negs))])
         # Permutação para não beneficiar posições fixas em caso de empate
         # de score (a popularidade empata com frequência).
         perm = rng.permutation(len(items))
@@ -216,9 +214,7 @@ def evaluate_ranking_per_user(
     results: dict[str, dict[str, float]] = {}
     for name, scorer in scorers.items():
         scores = np.asarray(scorer(users, items), dtype="float64")
-        per_user = [
-            rank_metrics(scores[a:b], labels[a:b], ks) for a, b in slices
-        ]
+        per_user = [rank_metrics(scores[a:b], labels[a:b], ks) for a, b in slices]
         results[name] = {
             key: float(np.mean([m[key] for m in per_user])) for key in per_user[0]
         }

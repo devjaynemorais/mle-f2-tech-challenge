@@ -44,7 +44,11 @@ def test_ncf_fit_predict_com_dados_sinteticos() -> None:
 
     # Treina com poucas épocas apenas para validar o fluxo
     model = NCFRecommender(
-        n_users=10, n_items=15, embedding_dim=4, hidden_dims=[8], epochs=2,
+        n_users=10,
+        n_items=15,
+        embedding_dim=4,
+        hidden_dims=[8],
+        epochs=2,
         batch_size=32,
     )
     model.fit(X, y)

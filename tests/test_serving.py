@@ -43,9 +43,7 @@ def _sample_interactions() -> pd.DataFrame:
 
 def _store_with_item12() -> FeatureStore:
     extra = _events([(3, 12, "view", "2015-05-06")])
-    return FeatureStore(
-        pd.concat([_sample_interactions(), extra], ignore_index=True)
-    )
+    return FeatureStore(pd.concat([_sample_interactions(), extra], ignore_index=True))
 
 
 def test_store_user_and_item_counts():
