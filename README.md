@@ -212,6 +212,9 @@ por usuário, `view_count` por item, itens já vistos e ranking de popularidade.
 | `GET /` | Metadados do serviço |
 | `GET /health` | `{status, model_loaded, n_users, n_items}` |
 | `GET /recommend?user_id=X&top_k=10` | Top-K itens rankeados (`top_k` entre 1 e 100) |
+| `GET /explain?user_id=X&top_k=10` | Mesma coisa, mas com o passo a passo (features, pool de candidatos, fallback) — usado pela demo abaixo |
+| `GET /demo` | Página HTML da demo interativa |
+| `GET /demo/sample-users` | 3 `user_id` reais de exemplo (ativo, esparso, desconhecido) |
 
 Para um usuário conhecido, pontua os itens candidatos não vistos com o modelo e
 ranqueia (`strategy: "model"`). Para um usuário desconhecido (cold start), retorna
@@ -231,6 +234,16 @@ curl "http://localhost:8000/recommend?user_id=11883&top_k=5"
   ]
 }
 ```
+
+### Demo interativa
+
+Com `make mlflow` + `make api` (ou `docker-compose up mlflow api`) no ar, abra
+**`http://localhost:8000/demo`**: uma página que chama o modelo Production de
+verdade (via `/explain`, a mesma lógica de `/recommend` com o passo a passo
+exposto — pool de candidatos, features cruas por item, score, fallback de
+popularidade) e narra as 6 etapas do `dvc.yaml` que rodaram offline antes
+disso. Serve tanto pra mostrar o projeto funcionando quanto de roteiro visual
+pro vídeo STAR.
 
 ## Docker
 
@@ -352,18 +365,33 @@ Detalhes em [`docs/tests.md`](docs/tests.md).
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `tests/test_preprocess.py` | DefaultPreprocessor e RetailRocketPreprocessor | 11 |
-| `tests/test_feature_engineering.py` | Features causais (as-of), ausência de vazamento, split | 12 |
-| `tests/test_labeling.py` | Rótulo único, negative sampling, determinismo | 11 |
-| `tests/test_ranking.py` | Métricas Top-K e protocolo por usuário | 12 |
-| `tests/test_ncf.py` | NCF: shapes, roteamento unknown, sanidade de aprendizado | 7 |
-| `tests/test_contract.py` | Contrato de features treino ↔ serving | 3 |
+| `tests/test_preprocess_stage.py` | Etapa DVC `preprocess` (orquestração: params.yaml, I/O) | 2 |
+| `tests/test_content_etl.py` | ETL de conteúdo: extração de categoria por item | 6 |
+| `tests/test_feature_engineering.py` | Features causais (as-of), ausência de vazamento, split | 16 |
+| `tests/test_build_features_stage.py` | Etapa DVC `feature_eng` (categorias, split, I/O) | 9 |
+| `tests/test_labeling.py` | Rótulo único, negative sampling, determinismo | 18 |
+| `tests/test_dataset.py` | `RetailRocketDataset` (tensores de treino) | 1 |
+| `tests/test_baselines.py` | `DummyRecommender`, `LogisticRecommender` | 3 |
+| `tests/test_ncf.py` | NCF: shapes, roteamento unknown, sanidade de aprendizado | 14 |
 | `tests/test_smoke.py` | ModelFactory e NCF (fit + predict) | 4 |
-| `tests/test_registry.py` | Registro e promoção no MLflow Registry | 3 |
-| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService e endpoints | 16 |
-| **Total** | | **79** |
+| `tests/test_trainer.py` | Etapa DVC `train` (orquestração + MLflow) | 15 |
+| `tests/test_ranking.py` | Métricas Top-K e protocolo por usuário | 13 |
+| `tests/test_scorers.py` | `HistoryFeatureLookup` e scorers (modelo/popularidade) | 6 |
+| `tests/test_evaluate.py` | Etapa DVC `evaluate` (classificação + ranking + MLflow) | 12 |
+| `tests/test_contract.py` | Contrato de features treino ↔ serving | 3 |
+| `tests/test_registry.py` | MLflow tracking + etapa DVC `promote` | 9 |
+| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService, API e demo | 43 |
+| `tests/test_eda.py` | Helpers de EDA | 5 |
+| `tests/test_plots.py` | Visualização (matplotlib/seaborn, backend Agg) | 6 |
+| `tests/test_seed.py` | Reprodutibilidade (seeds Python/NumPy/PyTorch) | 2 |
+| `tests/test_logging_config.py` | Configuração central de logging | 1 |
+| `tests/test_make_dataset.py` | Helper genérico de download (scaffold) | 1 |
+| **Total** | | **200** |
 
-Todos os testes usam dados sintéticos em memória — sem leitura de `data/` nem
-dependência de servidor MLflow.
+Cobertura de linha: **100%** em todo o `src/` (`pytest --cov=src`). Todos os
+testes usam dados sintéticos em memória — sem leitura de dados reais em
+`data/` nem dependência de um servidor MLflow no ar (alguns usam um backend
+MLflow SQLite temporário, criado e descartado dentro do próprio teste).
 
 ## Parâmetros
 

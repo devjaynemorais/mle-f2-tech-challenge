@@ -553,7 +553,7 @@
         <div class="thesis">
           <span><b>0,379</b> vs 0,303 — NDCG@10 do modelo vs. popularidade (forte, warm)</span>
           <span><b>+63%</b> vs. o baseline de popularidade sob relevância ampla</span>
-          <span><b>95</b> testes · <b>6</b> estágios DVC · <b>2</b> specs</span>
+          <span><b>200</b> testes (100% cobertura) · <b>6</b> estágios DVC · <b>2</b> specs</span>
         </div>
       </div>
     </section>
@@ -672,8 +672,9 @@
               <td><span class="pill win">feito</span> Factory (<code>ModelFactory</code>) e Strategy
               (<code>PreprocessStrategy</code>) em <code>src/models/factory.py</code> e
               <code>src/data/preprocessor.py</code>; <code>ruff</code> com regras estritas
-              (<code>ANN</code>, <code>D</code>, <code>B</code>, complexidade ≤10) e <code>mypy</code>
-              configurados em <code>pyproject.toml</code>; hooks de <code>pre-commit</code> ativos.</td>
+              (<code>ANN</code>, <code>D</code>, <code>B</code>, complexidade ≤10) — <b>0 erros</b>;
+              <code>mypy</code> — <b>0 erros</b> em 37 arquivos; hooks de <code>pre-commit</code>
+              ativos; <b>200 testes, 100% de cobertura</b> em todo o <code>src/</code>.</td>
             </tr>
             <tr>
               <td>Reprodutibilidade</td><td class="num">15%</td>
