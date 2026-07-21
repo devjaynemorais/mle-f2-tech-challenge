@@ -182,6 +182,20 @@ def test_sample_view_rows_respects_ratio_and_cap(events):
     assert len(small) == 2
 
 
+def test_sample_view_rows_empty_when_ratio_rounds_to_zero(events):
+    """n_positives * view_sample_ratio arredondando pra 0 → nenhuma view."""
+    result = _sample_view_rows(events, n_positives=1, view_sample_ratio=1e-6, seed=1)
+    assert result.empty
+
+
+def test_build_labeled_dataset_skips_view_rows_when_none_sampled(events):
+    """Ratio > 0 mas arredondado pra 0 views: sem view_rows, sem quebrar."""
+    labeled = build_labeled_dataset(events, seed=1, view_sample_ratio=1e-6)
+    assert VIEW_TARGET_COL in labeled.columns
+    n_pos_expected = int(is_positive(events["event"]).sum())
+    assert (labeled[TARGET_COL] == 1.0).sum() == n_pos_expected
+
+
 def test_raises_without_positives():
     df = pd.DataFrame(
         {

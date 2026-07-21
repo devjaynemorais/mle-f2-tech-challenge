@@ -26,7 +26,6 @@ class PreprocessStrategy(ABC):
         Returns:
             DataFrame limpo pronto para feature engineering.
         """
-        ...
 
 
 class DefaultPreprocessor(PreprocessStrategy):

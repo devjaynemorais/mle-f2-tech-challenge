@@ -77,3 +77,11 @@ no_strict_optional = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=src --cov-report=term-missing"
+
+[tool.coverage.report]
+# Boilerplate de entrypoint CLI (`python -m src.x.y`) — nunca executa sob
+# pytest (module __name__ é o path do módulo, não "__main__"), então não é
+# lógica testável. Convenção padrão: excluir do relatório, não da suíte.
+exclude_lines = [
+    "if __name__ == .__main__.:",
+]

@@ -45,6 +45,10 @@ def test_ndcg_perfect_ranking_is_1():
     assert ndcg_at_k(np.array([1, 1, 0, 0]), k=4, n_pos=2) == pytest.approx(1.0)
 
 
+def test_ndcg_at_k_zero_when_no_positives():
+    assert ndcg_at_k(np.array([0, 0]), k=2, n_pos=0) == 0.0
+
+
 def test_rank_metrics_orders_by_score_desc():
     scores = np.array([0.1, 0.9, 0.5])
     labels = np.array([0.0, 1.0, 0.0])  # melhor score é o positivo
