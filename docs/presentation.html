@@ -19,6 +19,9 @@
     --line: rgba(29, 33, 38, 0.14);
     --card: #ffffffb0;
     --shadow: 0 1px 2px rgba(20, 16, 8, 0.06);
+    --funnel-1: #e3b78a;
+    --funnel-2: #c9793a;
+    --funnel-3: #8a531f;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -32,6 +35,9 @@
       --line: rgba(233, 228, 216, 0.14);
       --card: #1b222699;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --funnel-1: #6b4d2c;
+      --funnel-2: #dc9552;
+      --funnel-3: #f3b673;
       color-scheme: dark;
     }
     body { background: var(--ink); }
@@ -46,6 +52,9 @@
     --line: rgba(233, 228, 216, 0.14);
     --card: #1b222699;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --funnel-1: #6b4d2c;
+    --funnel-2: #dc9552;
+    --funnel-3: #f3b673;
     color-scheme: dark;
   }
   :root[data-theme="dark"] body { background: var(--ink); }
@@ -59,6 +68,9 @@
     --line: rgba(29, 33, 38, 0.14);
     --card: #ffffffb0;
     --shadow: 0 1px 2px rgba(20, 16, 8, 0.06);
+    --funnel-1: #e3b78a;
+    --funnel-2: #c9793a;
+    --funnel-3: #8a531f;
     color-scheme: light;
   }
   :root[data-theme="light"] body { background: var(--paper); }
@@ -232,6 +244,19 @@
   }
   .card h4 { margin-top: 0; }
 
+  /* ---------- funnel diagram ---------- */
+  .funnel { margin: 16px 0 14px; display: flex; flex-direction: column; gap: 7px; }
+  .funnel-row { display: flex; align-items: center; gap: 10px; }
+  .funnel-track { width: 190px; flex-shrink: 0; }
+  @media (max-width: 720px) { .funnel-track { width: 120px; } }
+  .funnel-bar { height: 24px; min-width: 4px; border-radius: 0 4px 4px 0; }
+  .funnel-bar.s1 { background: var(--funnel-1); }
+  .funnel-bar.s2 { background: var(--funnel-2); }
+  .funnel-bar.s3 { background: var(--funnel-3); }
+  .funnel-label { font-size: 0.85rem; white-space: nowrap; }
+  .funnel-label b { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .funnel-drop { font-size: 0.72rem; color: var(--text-dim); padding-left: 4px; }
+
   /* ---------- stat callouts ---------- */
   .stat-row {
     display: grid;
@@ -265,11 +290,11 @@
   }
 
   /* ---------- ledger tables ---------- */
-  .tbl-wrap { overflow-x: auto; margin: 20px 0 28px; }
+  .tbl-wrap { margin: 20px 0 28px; }
   table {
     border-collapse: collapse;
+    table-layout: auto;
     width: 100%;
-    min-width: 460px;
     font-size: 0.92rem;
   }
   caption {
@@ -283,8 +308,9 @@
     text-align: left;
     padding: 9px 14px 9px 0;
     border-bottom: 1px solid var(--line);
-    white-space: nowrap;
+    overflow-wrap: break-word;
   }
+  td.num, th.num { white-space: nowrap; }
   th {
     font-family: ui-monospace, monospace;
     font-size: 0.7rem;
@@ -638,16 +664,68 @@
       <h3>Critérios de avaliação do desafio</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Critério</th><th class="num">Peso</th><th>O que é olhado</th></tr></thead>
+          <thead><tr><th>Critério</th><th class="num">Peso</th><th>O que é olhado</th><th>O que foi feito no projeto</th></tr></thead>
           <tbody>
-            <tr><td>Clean code e estrutura</td><td class="num">20%</td><td>SOLID, naming, type hints, design patterns, linting</td></tr>
-            <tr><td>Reprodutibilidade</td><td class="num">15%</td><td>Poetry, lock file, .env, instalação limpa</td></tr>
-            <tr><td>Docker</td><td class="num">15%</td><td>Multi-stage, imagem otimizada, compose funcional</td></tr>
-            <tr><td>DVC + Pipeline</td><td class="num">15%</td><td>Dataset versionado, pipeline ≥ 4 estágios, <code>dvc repro</code> funcional</td></tr>
-            <tr><td>Rede neural (PyTorch)</td><td class="num">15%</td><td>Modelo funcional, early stopping, comparação com baselines</td></tr>
-            <tr><td>MLflow + Registry</td><td class="num">10%</td><td>≥ 3 runs rastreados, modelo promovido a Production</td></tr>
-            <tr><td>Vídeo STAR</td><td class="num">10%</td><td>Clareza, cobertura dos 4 elementos, ≤ 5 min</td></tr>
-            <tr><td>Bônus: deploy em nuvem</td><td class="num">+5%</td><td>Container acessível via URL pública</td></tr>
+            <tr>
+              <td>Clean code e estrutura</td><td class="num">20%</td>
+              <td>SOLID, naming, type hints, design patterns, linting</td>
+              <td><span class="pill win">feito</span> Factory (<code>ModelFactory</code>) e Strategy
+              (<code>PreprocessStrategy</code>) em <code>src/models/factory.py</code> e
+              <code>src/data/preprocessor.py</code>; <code>ruff</code> com regras estritas
+              (<code>ANN</code>, <code>D</code>, <code>B</code>, complexidade ≤10) e <code>mypy</code>
+              configurados em <code>pyproject.toml</code>; hooks de <code>pre-commit</code> ativos.</td>
+            </tr>
+            <tr>
+              <td>Reprodutibilidade</td><td class="num">15%</td>
+              <td>Poetry, lock file, .env, instalação limpa</td>
+              <td><span class="pill win">feito</span> <code>pyproject.toml</code> +
+              <code>poetry.lock</code> versionados, <code>.env.example</code> documentado,
+              <code>make setup</code> para instalação limpa de ponta a ponta.</td>
+            </tr>
+            <tr>
+              <td>Docker</td><td class="num">15%</td>
+              <td>Multi-stage, imagem otimizada, compose funcional</td>
+              <td><span class="pill win">feito</span> <code>Dockerfile</code> com 4 estágios
+              (<code>builder</code>, <code>runtime</code>, <code>mlflow-server</code>,
+              <code>api</code>); <code>docker-compose.yml</code> com 5 serviços
+              (mlflow, train, evaluate, promote, api) e healthchecks.</td>
+            </tr>
+            <tr>
+              <td>DVC + Pipeline</td><td class="num">15%</td>
+              <td>Dataset versionado, pipeline ≥ 4 estágios, <code>dvc repro</code> funcional</td>
+              <td><span class="pill win">feito</span> <code>dvc.yaml</code> com 6 estágios
+              (<code>preprocess → content → feature_eng → train → evaluate → promote</code>),
+              <code>dvc.lock</code> versionado.</td>
+            </tr>
+            <tr>
+              <td>Rede neural (PyTorch)</td><td class="num">15%</td>
+              <td>Modelo funcional, early stopping, comparação com baselines</td>
+              <td><span class="pill win">feito</span> NCF (embeddings + MLP) em
+              <code>src/models/mlp.py</code>; <code>early_stopping_patience</code> configurado
+              em <code>params.yaml</code>/<code>trainer.py</code>; <code>make compare-baselines</code>
+              treina e compara dummy/logistic/NCF, e a avaliação compara contra o baseline
+              de popularidade (seção 08).</td>
+            </tr>
+            <tr>
+              <td>MLflow + Registry</td><td class="num">10%</td>
+              <td>≥ 3 runs rastreados, modelo promovido a Production</td>
+              <td><span class="pill win">feito</span> <code>src/models/registry.py</code> registra
+              em Staging e promove a Production por <code>val_ndcg_at_20</code>; runs de
+              <code>train</code>/<code>evaluate</code>/<code>promote</code> rastreados; coberto por
+              <code>tests/test_registry.py</code>.</td>
+            </tr>
+            <tr>
+              <td>Vídeo STAR</td><td class="num">10%</td>
+              <td>Clareza, cobertura dos 4 elementos, ≤ 5 min</td>
+              <td><span class="pill neutral">pendente</span> gravação não faz parte deste
+              repositório — roteiro a preparar com base neste deck.</td>
+            </tr>
+            <tr>
+              <td>Bônus: deploy em nuvem</td><td class="num">+5%</td>
+              <td>Container acessível via URL pública</td>
+              <td><span class="pill loss">não feito</span> imagens Docker prontas
+              (<code>target: api</code>), mas sem deploy em nuvem no estado atual do repositório.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -673,18 +751,31 @@
       <div class="grid-2">
         <div class="card">
           <h4>Distribuição de eventos</h4>
-          <ul>
-            <li><b>882K</b> view (navegação)</li>
-            <li><b>48K</b> addtocart</li>
-            <li><b>18K</b> transaction</li>
-          </ul>
-          <p>Funil: view → addtocart converte ~4–5%; addtocart → transaction converte ~35–45%.
-          A imensa maioria do sinal disponível é navegação, não compra.</p>
+          <div class="funnel">
+            <div class="funnel-row">
+              <div class="funnel-track"><div class="funnel-bar s1" style="width:100%"></div></div>
+              <div class="funnel-label"><b>882K</b> view (navegação)</div>
+            </div>
+            <div class="funnel-drop">↓ ~4–5% convertem</div>
+            <div class="funnel-row">
+              <div class="funnel-track"><div class="funnel-bar s2" style="width:5.4%"></div></div>
+              <div class="funnel-label"><b>48K</b> addtocart</div>
+            </div>
+            <div class="funnel-drop">↓ ~35–45% convertem</div>
+            <div class="funnel-row">
+              <div class="funnel-track"><div class="funnel-bar s3" style="width:2%"></div></div>
+              <div class="funnel-label"><b>18K</b> transaction</div>
+            </div>
+          </div>
+          <p>A imensa maioria do sinal disponível é navegação, não compra — o funil
+          acima está em escala real, não distorcida: dá pra ver o quanto ele afina.</p>
         </div>
         <div class="card">
           <h4>Por que isso molda todo o design</h4>
           <p>Com mediana de ~2 interações por usuário (base bruta) e catálogo de ~235K itens,
-          qualquer feature agregada por usuário é rala. Isso empurra o design pra: (a)
+          uma feature agregada por usuário (ex.: "ticket médio", "categoria favorita") vira
+          quase um sinônimo do próprio evento — com 1–2 pontos, a "média" é só o valor
+          isolado, sem padrão nenhum pra generalizar. Isso empurra o design pra: (a)
           features causais que dão sinal por linha, não só por entidade, e (b) um baseline
           de popularidade forte o bastante pra ser um adversário de verdade, não um palha.</p>
         </div>
