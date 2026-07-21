@@ -19,6 +19,7 @@ e serving apliquem a mesma transformação (FR-007).
 from __future__ import annotations
 
 import copy
+from typing import cast
 
 import numpy as np
 import torch
@@ -335,12 +336,13 @@ class NCFRecommender(RecommenderBase):
         spec `001-recommender-quality` (AC-2), confirmado por ablation.
         """
         if not self._multitask:
-            return loss_fn(strong_logit, yb)
+            return cast(torch.Tensor, loss_fn(strong_logit, yb))
         strong_mask = (~((yb_view == 1) & (yb == 0))).float()
         per_row = F.binary_cross_entropy_with_logits(strong_logit, yb, reduction="none")
         n_masked = strong_mask.sum().clamp(min=1)
         strong_loss = (per_row * strong_mask).sum() / n_masked
-        return strong_loss + self.view_loss_weight * loss_fn(view_logit, yb_view)
+        view_loss = cast(torch.Tensor, loss_fn(view_logit, yb_view))
+        return strong_loss + self.view_loss_weight * view_loss
 
     def _train_epoch(
         self,

@@ -61,7 +61,8 @@ class HistoryFeatureLookup:
 
     def view_counts(self, items: np.ndarray) -> np.ndarray:
         """Total de views por item no histórico (0 para desconhecidos)."""
-        return pd.Series(items).map(self._item_views).fillna(0.0).to_numpy("float64")
+        series = pd.Series(items).map(self._item_views).fillna(0.0)
+        return np.asarray(series.to_numpy("float64"))
 
     def pair_features(
         self, users: np.ndarray, items: np.ndarray, ts: np.ndarray

@@ -13,6 +13,7 @@ import json
 import logging
 import pickle
 from pathlib import Path
+from typing import cast
 
 import mlflow
 import numpy as np
@@ -61,7 +62,7 @@ def load_model() -> RecommenderBase:
         model_file = d / "model.pkl"
         if model_file.exists():
             with open(model_file, "rb") as f:
-                return pickle.load(f)
+                return cast(RecommenderBase, pickle.load(f))
     raise FileNotFoundError(f"Nenhum model.pkl encontrado em {MODELS_DIR}")
 
 

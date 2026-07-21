@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -84,7 +85,7 @@ def plot_power_law(
     plt.show()
 
 
-def _annotate_bars(ax: plt.Axes, bars: list, values: list) -> None:
+def _annotate_bars(ax: plt.Axes, bars: Iterable, values: Iterable) -> None:
     """Adiciona rótulo de valor ao lado de cada barra horizontal."""
     for bar, val in zip(bars, values, strict=True):
         ax.text(
