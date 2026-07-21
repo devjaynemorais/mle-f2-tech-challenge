@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Sistema de Recomendação RetailRocket — Deck de Defesa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink: #12181c;
+    --ink-2: #1b2227;
+    --paper: #e7e2d6;
+    --paper-2: #ddd6c6;
+    --text: #1d2126;
+    --text-dim: #52504a;
+    --accent: #c9793a;
+    --accent-soft: #e3b78a;
+    --good: #4f7a5c;
+    --bad: #a84a3c;
+    --line: rgba(29, 33, 38, 0.14);
+    --card: #ffffffb0;
+    --shadow: 0 1px 2px rgba(20, 16, 8, 0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #e9e4d8;
+      --text-dim: #a29c8d;
+      --accent: #dc9552;
+      --accent-soft: #6b4d2c;
+      --good: #7fae8c;
+      --bad: #d3796a;
+      --line: rgba(233, 228, 216, 0.14);
+      --card: #1b222699;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      color-scheme: dark;
+    }
+    body { background: var(--ink); }
+  }
+  :root[data-theme="dark"] {
+    --text: #e9e4d8;
+    --text-dim: #a29c8d;
+    --accent: #dc9552;
+    --accent-soft: #6b4d2c;
+    --good: #7fae8c;
+    --bad: #d3796a;
+    --line: rgba(233, 228, 216, 0.14);
+    --card: #1b222699;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+  :root[data-theme="dark"] body { background: var(--ink); }
+  :root[data-theme="light"] {
+    --text: #1d2126;
+    --text-dim: #52504a;
+    --accent: #c9793a;
+    --accent-soft: #e3b78a;
+    --good: #4f7a5c;
+    --bad: #a84a3c;
+    --line: rgba(29, 33, 38, 0.14);
+    --card: #ffffffb0;
+    --shadow: 0 1px 2px rgba(20, 16, 8, 0.06);
+    color-scheme: light;
+  }
+  :root[data-theme="light"] body { background: var(--paper); }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  @media (prefers-color-scheme: dark) { body { background: var(--ink); } }
+
+  h1, h2, h3, h4 {
+    font-family: "Iowan Old Style", Charter, "Georgia Pro", Georgia, "Noto Serif", serif;
+    font-weight: 600;
+    text-wrap: balance;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .mono {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Roboto Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a { color: inherit; }
+
+  /* ---------- layout shell ---------- */
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 28px 20px;
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+  }
+  @media (prefers-color-scheme: dark) { .rail { background: var(--ink-2); } }
+  :root[data-theme="dark"] .rail { background: var(--ink-2); }
+  :root[data-theme="light"] .rail { background: var(--paper-2); }
+  @media (max-width: 900px) {
+    .rail { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 18px 20px; }
+  }
+
+  .rail-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 26px;
+  }
+  .rail-brand .mark {
+    font-family: "Iowan Old Style", Charter, Georgia, serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--accent);
+  }
+  .rail-brand .sub {
+    font-family: ui-monospace, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .rail nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  @media (max-width: 900px) {
+    .rail nav { flex-direction: row; flex-wrap: wrap; gap: 6px 14px; }
+  }
+  .rail nav a {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    text-decoration: none;
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .rail nav a .idx {
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    opacity: 0.6;
+    min-width: 1.4em;
+  }
+  .rail nav a:hover { color: var(--text); background: var(--line); }
+  .rail nav a.active { color: var(--accent); background: var(--line); }
+  .rail nav a.active .idx { color: var(--accent); opacity: 1; }
+
+  main { min-width: 0; }
+
+  section {
+    padding: 88px clamp(24px, 5vw, 88px);
+    border-bottom: 1px solid var(--line);
+    max-width: 1180px;
+  }
+  section:last-of-type { border-bottom: none; }
+
+  .eyebrow {
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); margin-bottom: 8px; }
+  h3 { font-size: 1.25rem; margin: 34px 0 12px; }
+  h4 { font-size: 1rem; margin: 22px 0 8px; color: var(--accent); }
+
+  .lede {
+    max-width: 62ch;
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    margin-top: 10px;
+  }
+
+  p { max-width: 68ch; margin: 0 0 14px; }
+  p.wide { max-width: 100%; }
+  ul, ol { max-width: 68ch; padding-left: 1.2em; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin: 24px 0;
+  }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .card h4 { margin-top: 0; }
+
+  /* ---------- stat callouts ---------- */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 26px 0;
+  }
+  .stat {
+    background: var(--paper);
+    padding: 18px 18px 16px;
+  }
+  @media (prefers-color-scheme: dark) { .stat { background: var(--ink); } }
+  :root[data-theme="dark"] .stat { background: var(--ink); }
+  :root[data-theme="light"] .stat { background: var(--paper); }
+  .stat .n {
+    font-family: ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--accent);
+    display: block;
+  }
+  .stat .l {
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* ---------- ledger tables ---------- */
+  .tbl-wrap { overflow-x: auto; margin: 20px 0 28px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 460px;
+    font-size: 0.92rem;
+  }
+  caption {
+    text-align: left;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    caption-side: top;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 14px 9px 0;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  th {
+    font-family: ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  td.num, th.num { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  td.win { color: var(--good); font-weight: 600; }
+  td.loss { color: var(--bad); }
+  tr:last-child td { border-bottom: none; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+    padding: 2px 9px;
+    border-radius: 99px;
+    border: 1px solid currentColor;
+  }
+  .pill.win { color: var(--good); }
+  .pill.loss { color: var(--bad); }
+  .pill.neutral { color: var(--text-dim); }
+
+  blockquote {
+    margin: 22px 0;
+    padding: 4px 0 4px 20px;
+    border-left: 2px solid var(--accent);
+    max-width: 64ch;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  code {
+    font-family: ui-monospace, monospace;
+    background: var(--line);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.88em;
+  }
+
+  .step-list { counter-reset: step; list-style: none; padding-left: 0; max-width: 68ch; }
+  .step-list li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 38px;
+    margin-bottom: 16px;
+  }
+  .step-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .faq-item { border-top: 1px solid var(--line); padding: 20px 0; max-width: 74ch; }
+  .faq-item:last-child { padding-bottom: 0; }
+  .faq-q { font-weight: 600; margin-bottom: 8px; display: flex; gap: 10px; }
+  .faq-q .qmark { color: var(--accent); font-family: ui-monospace, monospace; }
+  .faq-a { color: var(--text-dim); }
+  .faq-a p:last-child { margin-bottom: 0; }
+
+  mermaid, pre.mermaid { background: transparent; }
+  .diagram-wrap {
+    margin: 24px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow-x: auto;
+    background: var(--card);
+  }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    padding: 0;
+    min-height: 92vh;
+    display: flex;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+    max-width: none;
+  }
+  #heroCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    padding: 60px clamp(24px, 5vw, 88px) 70px;
+    max-width: 900px;
+  }
+  .hero .eyebrow { color: var(--accent-soft); }
+  @media (prefers-color-scheme: dark) { .hero .eyebrow { color: var(--accent); } }
+  :root[data-theme="dark"] .hero .eyebrow { color: var(--accent); }
+  .hero h1 {
+    font-size: clamp(2.3rem, 5.2vw, 4rem);
+    line-height: 1.05;
+    color: var(--text);
+  }
+  .hero .lede { max-width: 56ch; font-size: 1.12rem; margin-top: 18px; }
+  .hero .thesis {
+    margin-top: 30px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.95rem;
+    color: var(--accent);
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .hero .thesis b { font-size: 1.15rem; }
+
+  footer {
+    padding: 40px clamp(24px, 5vw, 88px) 60px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  ::selection { background: var(--accent); color: var(--ink); }
+
+  /* ---------- plain-language layer ---------- */
+  .plain-box {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    max-width: 74ch;
+    margin: 22px 0 30px;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: var(--card);
+  }
+  .plain-box .ico {
+    font-size: 1.1rem;
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .plain-box .body {
+    font-size: 0.94rem;
+    color: var(--text-dim);
+  }
+  .plain-box .body b { color: var(--text); }
+  .plain-box .body .tag {
+    display: block;
+    font-family: ui-monospace, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 5px;
+  }
+
+  .exec-summary {
+    max-width: 74ch;
+    font-size: 1.06rem;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px 26px;
+    margin: 22px 0 34px;
+  }
+  .exec-summary b { color: var(--accent); }
+
+  .glossary {
+    display: grid;
+    grid-template-columns: minmax(140px, 200px) 1fr;
+    gap: 3px 22px;
+    max-width: 900px;
+  }
+  .glossary dt {
+    font-family: ui-monospace, monospace;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--accent);
+    padding: 11px 0;
+    border-top: 1px solid var(--line);
+  }
+  .glossary dd {
+    margin: 0;
+    padding: 11px 0;
+    border-top: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+  @media (max-width: 620px) {
+    .glossary { grid-template-columns: 1fr; }
+    .glossary dt { border-top: 1px solid var(--line); padding-bottom: 2px; }
+    .glossary dd { border-top: none; padding-top: 0; margin-bottom: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-brand">
+      <span class="mark">RetailRocket</span>
+      <span class="sub">Deck&nbsp;de&nbsp;defesa</span>
+    </div>
+    <nav id="navRail">
+      <a href="#resumo"><span class="idx">00</span>Resumo &amp; glossário</a>
+      <a href="#problema"><span class="idx">01</span>Problema de negócio</a>
+      <a href="#dataset"><span class="idx">02</span>Dataset &amp; EDA</a>
+      <a href="#diagnostico"><span class="idx">03</span>Diagnóstico original</a>
+      <a href="#features"><span class="idx">04</span>Features &amp; rótulo</a>
+      <a href="#arquitetura"><span class="idx">05</span>Arquitetura do modelo</a>
+      <a href="#pipeline"><span class="idx">06</span>Pipeline &amp; MLOps</a>
+      <a href="#avaliacao"><span class="idx">07</span>Protocolo de avaliação</a>
+      <a href="#resultados"><span class="idx">08</span>Resultados</a>
+      <a href="#regressao"><span class="idx">09</span>A regressão e o fix</a>
+      <a href="#limitacoes"><span class="idx">10</span>Limitações</a>
+      <a href="#futuro"><span class="idx">11</span>Trabalho futuro</a>
+      <a href="#faq"><span class="idx">12</span>Perguntas prováveis</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="hero" id="topo">
+      <canvas id="heroCanvas"></canvas>
+      <div class="hero-inner">
+        <div class="eyebrow">FIAP · MLE Fase 2 · Tech Challenge</div>
+        <h1>Um recomendador que aprendeu a distinguir<br>"visto" de "comprado".</h1>
+        <p class="lede">Sistema de recomendação Top-K para e-commerce sobre o dataset RetailRocket —
+        da tarefa mal formulada (AUC≈0,5) até um NCF multi-task validado em dados reais,
+        com pipeline reprodutível em DVC + MLflow. Este material documenta cada decisão
+        para você apresentar e defender.</p>
+        <div class="thesis">
+          <span><b>0,379</b> vs 0,303 — NDCG@10 do modelo vs. popularidade (forte, warm)</span>
+          <span><b>+63%</b> vs. o baseline de popularidade sob relevância ampla</span>
+          <span><b>95</b> testes · <b>6</b> estágios DVC · <b>2</b> specs</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 00 — RESUMO E GLOSSÁRIO -->
+    <section id="resumo">
+      <div class="eyebrow">00 — Leia isto primeiro</div>
+      <h2>Resumo em 1 minuto</h2>
+      <div class="exec-summary">
+        <p style="margin-bottom:0">Construímos um sistema que, pra cada cliente de uma loja
+        virtual, decide quais produtos mostrar sem que ele precise buscar nada — tipo a seção
+        "recomendado pra você". A primeira versão não funcionava de verdade: ela "decorava"
+        os dados de um jeito que parecia bom no papel, mas não ajudaria ninguém na prática.
+        Reformulamos a tarefa do zero, comparamos sempre contra o concorrente mais óbvio
+        (só mostrar os produtos mais vendidos), e só consideramos "bom" o que realmente supera
+        esse concorrente. No fim, o modelo <b>supera</b> a estratégia de "mais vendidos" tanto
+        pra prever compra quanto pra prever navegação — exceto para clientes totalmente novos,
+        onde nada substitui ter algum histórico, e por isso a estratégia simples continua
+        cobrindo esse caso.</p>
+      </div>
+
+      <h3>Glossário — os termos que aparecem no resto do material</h3>
+      <dl class="glossary">
+        <dt>Ranking</dt>
+        <dd>Ordenar uma lista de produtos do mais pro menos relevante pra uma pessoa —
+        diferente de "classificação", que só responde sim/não pra um produto isolado.</dd>
+
+        <dt>Baseline de popularidade</dt>
+        <dd>O concorrente mais simples possível: recomendar sempre os produtos mais
+        vistos/vendidos, sem personalizar nada. É a barra mínima que qualquer modelo
+        precisa superar pra justificar o investimento em ML. É um baseline de
+        <b>ranking</b> — compete em "qual lista ordenar melhor".</dd>
+
+        <dt>Baseline de classificação (dummy / logistic)</dt>
+        <dd>Adversário fraco de um jogo <i>diferente</i>: "esse par usuário-item é positivo
+        ou não?" (sim/não), não "que lista ordenar". <code>dummy</code> chuta sempre a classe
+        majoritária; <code>logistic</code> é uma regressão logística de verdade. Fácil de
+        confundir com o baseline de popularidade acima — são baselines de tarefas diferentes,
+        ver seção 06.</dd>
+
+        <dt>Embedding</dt>
+        <dd>Um "resumo numérico" que o modelo aprende pra representar cada usuário, produto
+        ou categoria. Usuários com gosto parecido, ou produtos parecidos, acabam com
+        resumos numéricos parecidos.</dd>
+
+        <dt>Cold-start</dt>
+        <dd>Quando o modelo encontra um usuário ou produto que nunca viu antes — sem
+        histórico, não tem o que aprender sobre preferência.</dd>
+
+        <dt>Warm / cold (usuário)</dt>
+        <dd><b>Warm</b> = usuário que já apareceu nos dados de treino. <b>Cold</b> = usuário
+        novo, que só aparece depois — é o caso de cold-start acima.</dd>
+
+        <dt>NDCG@K</dt>
+        <dd>Nota de 0 a 1 pra qualidade de uma lista Top-K: premia colocar os produtos
+        certos <i>bem no topo</i>, não só em algum lugar da lista.</dd>
+
+        <dt>Recall / Precision / HitRate@K</dt>
+        <dd>Outras notas de 0 a 1 pra mesma ideia. Recall: quanto do que era relevante a
+        lista encontrou. Precision: quanto da lista é relevante. HitRate: acertou pelo
+        menos um item, sim ou não.</dd>
+
+        <dt>AUC (ROC-AUC)</dt>
+        <dd>Mede se o modelo separa bem "vai interagir" de "não vai interagir" — não mede
+        se a ordem final da lista é boa (por isso não é a métrica principal aqui).</dd>
+
+        <dt>Vazamento temporal</dt>
+        <dd>Quando o modelo "aprende" usando informação que só existiria no futuro — infla
+        os números na hora do teste sem refletir a realidade.</dd>
+
+        <dt>Negative sampling</dt>
+        <dd>Mostrar pro modelo, de propósito, exemplos de "isso o usuário não quis" (produtos
+        nunca vistos por ele) — sem isso ele nunca aprende o que rejeitar.</dd>
+
+        <dt>Multi-task</dt>
+        <dd>Treinar o mesmo modelo pra prever duas coisas ao mesmo tempo (aqui: "vai
+        comprar" e "vai só olhar"), compartilhando o que ele aprendeu entre as duas.</dd>
+      </dl>
+    </section>
+
+    <!-- 01 — PROBLEMA DE NEGÓCIO -->
+    <section id="problema">
+      <div class="eyebrow">01 — Contexto</div>
+      <h2>O problema de negócio</h2>
+      <p class="lede">Uma loja virtual precisa decidir, para cada usuário, quais produtos mostrar
+      quando não há uma busca explícita — na home, no "quem viu também viu", no e-mail de
+      retenção. Isso é um problema de <b>ranking</b>, não de classificação: o que importa não é
+      "esse usuário vai comprar esse item?" isoladamente, é "destes milhares de itens, quais
+      N eu coloco no topo?".</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Por que não é trivial</h4>
+          <p>O catálogo é grande, o histórico por usuário é curto (mediana de ~2 interações) e
+          a maioria dos eventos é navegação sem intenção de compra. Um recomendador ingênuo
+          aprende a prever popularidade, não preferência — e um bom recomendador precisa
+          superar esse baseline, não apenas "funcionar".</p>
+        </div>
+        <div class="card">
+          <h4>Por que isso importa aqui</h4>
+          <p>O Tech Challenge avalia o pipeline de ponta a ponta — não só a métrica final.
+          Pipeline de dados versionado (DVC), rastreamento de experimentos (MLflow),
+          reprodutibilidade e comparação honesta contra baseline valem tanto quanto o
+          modelo em si.</p>
+        </div>
+      </div>
+
+      <h3>Critérios de avaliação do desafio</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Critério</th><th class="num">Peso</th><th>O que é olhado</th></tr></thead>
+          <tbody>
+            <tr><td>Clean code e estrutura</td><td class="num">20%</td><td>SOLID, naming, type hints, design patterns, linting</td></tr>
+            <tr><td>Reprodutibilidade</td><td class="num">15%</td><td>Poetry, lock file, .env, instalação limpa</td></tr>
+            <tr><td>Docker</td><td class="num">15%</td><td>Multi-stage, imagem otimizada, compose funcional</td></tr>
+            <tr><td>DVC + Pipeline</td><td class="num">15%</td><td>Dataset versionado, pipeline ≥ 4 estágios, <code>dvc repro</code> funcional</td></tr>
+            <tr><td>Rede neural (PyTorch)</td><td class="num">15%</td><td>Modelo funcional, early stopping, comparação com baselines</td></tr>
+            <tr><td>MLflow + Registry</td><td class="num">10%</td><td>≥ 3 runs rastreados, modelo promovido a Production</td></tr>
+            <tr><td>Vídeo STAR</td><td class="num">10%</td><td>Clareza, cobertura dos 4 elementos, ≤ 5 min</td></tr>
+            <tr><td>Bônus: deploy em nuvem</td><td class="num">+5%</td><td>Container acessível via URL pública</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="lede">Frase de defesa: <i>"o modelo é 15% da nota — o resto é pipeline, reprodutibilidade
+      e rigor experimental. É por isso que documentamos até os erros."</i></p>
+    </section>
+
+    <!-- 02 — DATASET -->
+    <section id="dataset">
+      <div class="eyebrow">02 — Dados</div>
+      <h2>RetailRocket E-commerce Dataset</h2>
+      <p class="lede">Logs reais e anonimizados de uma loja virtual: eventos de navegação,
+      carrinho e compra ao longo de 4,5 meses (mai–out 2015), publicados no Kaggle.</p>
+
+      <div class="stat-row">
+        <div class="stat"><span class="n mono">2,76M</span><span class="l">eventos brutos</span></div>
+        <div class="stat"><span class="n mono">948.537</span><span class="l">após filtro ≥5 interações</span></div>
+        <div class="stat"><span class="n mono">81.620</span><span class="l">usuários no conjunto filtrado</span></div>
+        <div class="stat"><span class="n mono">103.873</span><span class="l">itens no conjunto filtrado</span></div>
+        <div class="stat"><span class="n mono">&gt;99,99%</span><span class="l">esparsidade usuário×item</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Distribuição de eventos</h4>
+          <ul>
+            <li><b>882K</b> view (navegação)</li>
+            <li><b>48K</b> addtocart</li>
+            <li><b>18K</b> transaction</li>
+          </ul>
+          <p>Funil: view → addtocart converte ~4–5%; addtocart → transaction converte ~35–45%.
+          A imensa maioria do sinal disponível é navegação, não compra.</p>
+        </div>
+        <div class="card">
+          <h4>Por que isso molda todo o design</h4>
+          <p>Com mediana de ~2 interações por usuário (base bruta) e catálogo de ~235K itens,
+          qualquer feature agregada por usuário é rala. Isso empurra o design pra: (a)
+          features causais que dão sinal por linha, não só por entidade, e (b) um baseline
+          de popularidade forte o bastante pra ser um adversário de verdade, não um palha.</p>
+        </div>
+      </div>
+
+      <h3>Por que filtrar usuários com menos de 5 interações</h3>
+      <p>A distribuição de interações por usuário segue <b>power-law</b> (poucos usuários
+      concentram a maioria dos eventos; mediana bruta ≈ 2 interações/usuário) — é o único
+      filtro de linha aplicado no pipeline (<code>RetailRocketPreprocessor._filter_users()</code>,
+      estágio <code>preprocess</code>), antes de qualquer split ou feature. Nenhum evento é
+      descartado por tipo: <code>view</code>, <code>addtocart</code> e <code>transaction</code>
+      passam todos — o que muda é o papel de cada um (seção 04).</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Corte</th><th class="num">% de usuários</th><th>Efeito</th></tr></thead>
+          <tbody>
+            <tr><td>≥5 interações (mantidos)</td><td class="num win">~20–25%</td><td>preservam <b>~70%+</b> dos eventos brutos</td></tr>
+            <tr><td>&lt;5 interações (descartados)</td><td class="num loss">~75–80%</td><td>visita única/passagem — sem histórico suficiente pra features causais informativas</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>É uma troca deliberada: perder ~75% dos <i>usuários</i> custa pouco volume de
+      <i>eventos</i> de treino, porque quem tem menos de 5 interações raramente gera sinal de
+      preferência aprendível (nem <code>frequency</code> nem <code>engagement_score</code>
+      diferenciam nada com 1–2 pontos). Threshold documentado em
+      <code>docs/eda.md#decisões-para-o-pré-processamento</code>.</p>
+
+      <h3>Split cronológico (sem embaralhar)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Split</th><th class="num">Eventos</th><th class="num">% aprox.</th><th>Papel</th></tr></thead>
+          <tbody>
+            <tr><td>Treino</td><td class="num">663.976</td><td class="num">70%</td><td>Fit dos embeddings + scaler</td></tr>
+            <tr><td>Validação</td><td class="num">94.854</td><td class="num">10%</td><td>Early stopping + escolha de melhor run</td></tr>
+            <tr><td>Teste</td><td class="num">189.707</td><td class="num">20%</td><td>Métricas finais reportadas</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>O corte é por <b>timestamp</b>, não aleatório — treino é sempre estritamente anterior
+      a val, que é anterior a teste. Isso simula a situação real: prever o futuro a partir do
+      passado, nunca o contrário.</p>
+    </section>
+
+    <!-- 03 — DIAGNÓSTICO ORIGINAL -->
+    <section id="diagnostico">
+      <div class="eyebrow">03 — Onde começou</div>
+      <h2>O diagnóstico: por que o primeiro modelo tinha AUC≈0,5</h2>
+      <p class="lede">Antes da spec <code>001-recommender-quality</code>, o pipeline treinava e
+      media o modelo de um jeito que garantia que ele não aprendesse nada de útil — não por
+      um bug de código, mas por uma formulação de tarefa incompatível com o problema real.
+      Cinco causas, todas na mesma raiz:</p>
+
+      <div class="plain-box">
+        <span class="ico">🔎</span>
+        <div class="body"><span class="tag">Em termos simples</span>
+        Era como mostrar pro modelo a mesma pergunta duas vezes e dar respostas diferentes,
+        sem nenhuma pista de por quê. Ele não tinha como adivinhar o padrão certo — o problema
+        não era o modelo ser "ruim", era a prova estar mal formulada.</div>
+      </div>
+
+      <ol class="step-list">
+        <li><b>Rótulo sobre o próprio evento.</b> O label era <code>weight&nbsp;&gt;=&nbsp;3</code>
+        calculado em cima do tipo de evento <i>daquela mesma linha</i> — mas nenhuma feature
+        codificava esse tipo de evento. Duas linhas do mesmo usuário ficavam com vetor de
+        features quase idêntico e rótulos opostos: o modelo via a mesma entrada gerar
+        respostas diferentes e não tinha como separar as classes.</li>
+        <li><b>Vazamento temporal nas agregações.</b> Frequência, engajamento e recência eram
+        calculados sobre o dataset inteiro <i>antes</i> do split — uma linha de treino
+        carregava informação de eventos que só aconteceriam no futuro (val/teste).</li>
+        <li><b>Sem negative sampling.</b> O modelo só via interações que <i>aconteceram</i> —
+        nunca aprendeu o conceito de "não-interação". No serving, ele precisa pontuar
+        itens que o usuário nunca viu: distribuição de entrada totalmente diferente da de
+        treino.</li>
+        <li><b><code>user_idx</code>/<code>item_idx</code> como número cru.</b> Os ids
+        entravam direto no MLP como float, sem embedding — o design (documentado em três
+        lugares diferentes do projeto) sempre previu <code>nn.Embedding</code>, mas a
+        implementação nunca chegou lá.</li>
+        <li><b>Métrica errada.</b> Treino e avaliação usavam ROC-AUC/F1 sobre um threshold de
+        peso, mas o produto real é ranking Top-K (HitRate/Precision/Recall/NDCG@K).</li>
+      </ol>
+
+      <blockquote>Lição estrutural: o problema nunca foi "o modelo é fraco" — foi "a tarefa
+      como formulada não tinha solução aprendível". Consertar hiperparâmetro não resolveria
+      nada disso.</blockquote>
+    </section>
+
+    <!-- 04 — FEATURES -->
+    <section id="features">
+      <div class="eyebrow">04 — Fundação de dados</div>
+      <h2>Features causais e definição de rótulo</h2>
+      <p class="lede">Toda feature agregada é calculada <b>as-of</b>: cada linha enxerga só
+      eventos estritamente anteriores a ela, por construção — independente de onde o split
+      cronológico corta os dados. Isso elimina o vazamento por design, não por disciplina.</p>
+
+      <div class="plain-box">
+        <span class="ico">🔎</span>
+        <div class="body"><span class="tag">Em termos simples</span>
+        Pra ensinar o modelo, mostramos exemplos de "isso o usuário quis" (comprou ou colocou
+        no carrinho) e "isso ele não quis" (produtos que ele nunca viu). As "features" são
+        pistas sobre o comportamento de cada usuário e produto <i>até aquele momento</i> —
+        nunca uma informação que só existiria depois.</div>
+      </div>
+
+      <h3>As 10 colunas do contrato de features (v3)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Coluna</th><th>Nível</th><th>Cálculo causal</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">user_idx</td><td>identidade</td><td>índice de embedding (não numérico)</td></tr>
+            <tr><td class="mono">item_idx</td><td>identidade</td><td>índice de embedding (não numérico)</td></tr>
+            <tr><td class="mono">hour / day_of_week</td><td>evento</td><td>extraído do timestamp</td></tr>
+            <tr><td class="mono">frequency</td><td>usuário, as-of</td><td>nº de eventos <i>anteriores</i> do usuário</td></tr>
+            <tr><td class="mono">engagement_score</td><td>usuário, as-of</td><td>soma dos pesos anteriores (view=1, addtocart=3, transaction=5)</td></tr>
+            <tr><td class="mono">recency_days</td><td>usuário, as-of</td><td>dias desde o evento anterior do usuário</td></tr>
+            <tr><td class="mono">view_count</td><td>item, as-of</td><td>views anteriores do item</td></tr>
+            <tr><td class="mono">user_item_view_count</td><td>par, as-of</td><td>views anteriores <i>deste usuário neste item</i></td></tr>
+            <tr><td class="mono">user_item_recency_days</td><td>par, as-of</td><td>dias desde a última view <i>deste par</i></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>As duas últimas linhas (<code>user_item_*</code>) são features da spec
+      <code>002-multitask-coldstart</code> — dão sinal específico do par quando as agregações
+      por usuário/item isoladas não bastam (o caso comum, dado a esparsidade da base).</p>
+
+      <h3>De onde vem cada feature — nenhuma é arbitrária</h3>
+      <p>Cada coluna do contrato responde a um achado específico do EDA
+      (<code>notebooks/01_exploratory_data_analysis.ipynb</code>, consolidado em
+      <code>docs/feature_selection.md</code>) — a lista não foi "usar tudo que existia no
+      CSV":</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Achado do EDA que a motivou</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">user_idx / item_idx</td><td>Esparsidade &gt;99,99% inviabiliza one-hot — precisam ser <b>índice de embedding</b>, não valor numérico cru (era o bug central do diagnóstico original, seção 03)</td></tr>
+            <tr><td class="mono">hour / day_of_week</td><td>Pico de tráfego concentrado 10h–16h e padrão semanal visível na análise temporal</td></tr>
+            <tr><td class="mono">frequency</td><td>Distribuição power-law: usuários ≥5 interações concentram ~70%+ dos eventos — vale diferenciar "quão ativo" dentro desse grupo</td></tr>
+            <tr><td class="mono">engagement_score</td><td>Soma dos pesos por evento — captura <i>intensidade</i>, não só contagem (dois usuários com 5 eventos podem ter intenção bem diferente)</td></tr>
+            <tr><td class="mono">recency_days</td><td>Sinal de engajamento recente vs. usuário "esfriando"</td></tr>
+            <tr><td class="mono">view_count</td><td>Árvore de decisão exploratória apontou <code>view</code> como o principal driver de popularidade de item</td></tr>
+            <tr><td class="mono">cat_idx (embedding)</td><td><code>categoryid</code> era "o único metadado estruturado confiável disponível" (EDA) — dá sinal de conteúdo mesmo pra item com pouco histórico</td></tr>
+            <tr><td class="mono">user_item_view_count / recency</td><td>Spec 002 — na esparsidade desta base, "usuário já viu <i>este</i> item antes" carrega mais sinal que agregados isolados de usuário ou item</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><b>O que foi descartado, e por quê:</b> <code>popularity_tier</code> chegou a ser
+      calculado numa versão anterior e foi removido deliberadamente —
+      <code>view_count</code> contínuo e causal carrega a mesma informação sem discretizar.
+      Sessionização (agrupar eventos por visita) e taxa de conversão por usuário foram
+      cogitadas no EDA e ficaram de fora desta rodada (seção 11 — trabalho futuro).</p>
+
+      <h4>Transformação antes de entrar no modelo</h4>
+      <p><code>frequency</code>, <code>engagement_score</code> e <code>view_count</code> têm
+      cauda pesada (power-law) — sem tratamento, a maioria dos usuários/itens fica espremida
+      perto de zero e a variância do z-score é dominada por poucos outliers muito populares.
+      Por isso essas três colunas passam por <code>log1p</code> <i>antes</i> do
+      <code>StandardScaler</code> (as demais contínuas só são escalonadas). O scaler é
+      ajustado <b>somente no treino</b> e serializado dentro do <code>model.pkl</code> (D5,
+      seção 05) — treino, avaliação e serving nunca reajustam ou reimplementam essa
+      normalização.</p>
+
+      <h3>Rótulo, pesos de evento e o papel de cada tipo de evento</h3>
+      <p>Os três tipos de evento do RetailRocket entram <b>todos</b> no pipeline, mas cada um
+      cumpre um papel diferente — nenhum é descartado, e nenhum é tratado como equivalente
+      aos outros:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th class="num">Peso</th><th>Onde entra</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">view</td><td class="num">1</td><td>Sempre em <code>engagement_score</code>/<code>view_count</code>; <b>não</b> é rótulo positivo de treino; conta na relevância <b>ampla</b> de avaliação e alimenta a cabeça auxiliar <code>view_head</code> (multi-task, spec 002)</td></tr>
+            <tr><td class="mono">addtocart</td><td class="num">3</td><td>Rótulo positivo (<code>POSITIVE_EVENTS</code>); conta nas relevâncias <b>forte</b> e <b>ampla</b></td></tr>
+            <tr><td class="mono">transaction</td><td class="num">5</td><td>Rótulo positivo; conta nas relevâncias <b>forte</b> e <b>ampla</b>; maior peso — menor volume, maior qualidade de sinal (EDA)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A hierarquia de pesos (1 / 3 / 5) reflete o funil de conversão medido no EDA
+      (view→addtocart ~4–5%, addtocart→transaction ~35–45%): quanto mais raro e mais perto da
+      compra, maior o peso. <b>Por que <code>view</code> não é positivo de treino:</b> é o
+      evento mais barato e mais ambíguo — a maioria é navegação sem intenção de compra
+      (seção 02); tratá-lo como positivo diluiria o sinal de preferência real com ruído. Ele só
+      conta como "acerto" na avaliação de relevância <b>ampla</b>, que mede um objetivo
+      diferente (engajamento geral, não conversão) — e, desde a spec 002, também vira alvo da
+      cabeça auxiliar <code>view_head</code> (seção 05), que aprende esse sinal sem deixá-lo
+      contaminar a cabeça principal.</p>
+
+      <h3>Definição única de rótulo (<code>src/data/labeling.py</code>)</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Positivo</h4>
+          <p>Evento <code>addtocart</code> ou <code>transaction</code> — sinal forte de
+          preferência. Única fonte da verdade no projeto; nenhum outro módulo redeclara
+          threshold.</p>
+        </div>
+        <div class="card">
+          <h4>Negativo</h4>
+          <p>Itens do catálogo de treino <b>nunca vistos</b> pelo usuário, amostrados
+          <b>uniformemente</b> (não por popularidade) a 8:1 por positivo, com
+          <code>view_count</code>/features de par recalculadas as-of o timestamp do
+          positivo.</p>
+        </div>
+      </div>
+
+      <h4>Os filtros da amostragem de negativos</h4>
+      <ul>
+        <li><b>Rejeição de vistos.</b> Um candidato só vira negativo se não está no conjunto
+        "visto" do usuário (histórico + split sendo rotulado) — até 20 rodadas de
+        reamostragem (<code>_MAX_RESAMPLE_ROUNDS</code>) antes de descartar a linha, pra um
+        positivo real nunca vazar como negativo.</li>
+        <li><b>Uniforme, não por popularidade.</b> A escolha original foi popularidade^0,75
+        (estilo word2vec/NCF) — <b>revertida</b> depois de medir em dados reais que o modelo
+        aprendia a <i>punir</i> itens populares e perdia pro próprio baseline de popularidade
+        (NDCG@20 0,105 vs. 0,348; AUC teste 0,59 — <code>research.md</code> D1 e seção 09). O
+        expoente segue parametrizado (<code>labeling.popularity_alpha</code>) pra eventual
+        retuning, mas roda em 0 hoje.</li>
+        <li><b>Razão 8:1.</b> Oito negativos por positivo — balanço empírico entre dar sinal
+        suficiente de "o que rejeitar" e não afogar o gradiente dos ~66K positivos fortes por
+        época.</li>
+        <li><b>Por que não full-softmax.</b> O catálogo filtrado tem ~104K itens — pontuar
+        todos por linha de treino é inviável nesta escala; negative sampling é o padrão da
+        literatura de NCF/BPR pra este regime de esparsidade.</li>
+      </ul>
+
+      <h4>O sinal auxiliar de <code>view</code> (multi-task, spec 002)</h4>
+      <p>Além dos positivos/negativos acima, uma fração dos eventos <code>view</code> reais do
+      split é amostrada como sinal auxiliar (<code>view_sample_ratio: 8</code> — mesma ordem
+      de grandeza dos negativos) e recebe <code>view_label=1</code>, alimentando só a cabeça
+      <code>view_head</code>. <b>Por que não 100% dos views:</b> a base tem ~882K views contra
+      ~66K positivos fortes — usar tudo infla o dataset em ~13x e faz o gradiente do sinal
+      auxiliar dominar o principal, exatamente o risco que a spec 002 antecipou e que a
+      máscara de loss (seção 09) teve que corrigir depois de aparecer na prática.</p>
+    </section>
+
+    <!-- 05 — ARQUITETURA -->
+    <section id="arquitetura">
+      <div class="eyebrow">05 — O modelo</div>
+      <h2>NCF multi-task: duas cabeças, um trunk</h2>
+      <p class="lede">Neural Collaborative Filtering com embeddings de usuário, item e
+      categoria, mais uma camada extra que a maioria das implementações de referência não
+      tem: duas cabeças de saída compartilhando a mesma representação latente.</p>
+
+      <div class="plain-box">
+        <span class="ico">🔎</span>
+        <div class="body"><span class="tag">Em termos simples</span>
+        O modelo aprende um "perfil resumido" (uma lista de números) pra cada usuário e cada
+        produto, e usa esses perfis pra prever se um vai combinar com o outro. Ele dá duas
+        opiniões separadas sobre o mesmo par: uma sobre "vai comprar de verdade" e outra sobre
+        "vai só dar uma olhada" — as duas aprendem juntas, compartilhando a mesma base.</div>
+      </div>
+
+      <div class="diagram-wrap">
+<pre class="mermaid">
+flowchart LR
+    U["user_idx"] --> EU["Embedding usuário (64d)"]
+    I["item_idx"] --> EI["Embedding item (64d)"]
+    C["item_idx real (clipado)"] --> EC["Embedding categoria (8d)"]
+    K["8 features contínuas"] --> LG["log1p + StandardScaler"]
+    EU --> CC["Concat"]
+    EI --> CC
+    EC --> CC
+    LG --> CC
+    CC --> TR["Trunk MLP [128, 64]"]
+    TR --> SH["strong_head"]
+    TR --> VH["view_head"]
+    SH --> S1["sigmoid → P(interação forte)"]
+    VH --> S2["sigmoid → P(view)"]
+</pre>
+      </div>
+
+      <h3>Três decisões de design que valem a pena defender</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Índice "unknown" reservado</h4>
+          <p>O <b>último</b> índice de cada tabela de embedding (não o 0, que já é um id real
+          do <code>factorize</code>) recebe ids ausentes do treino. Treinado via
+          <code>unknown_dropout</code> (10%): a cada época, uma fração dos ids conhecidos é
+          roteada pra "unknown" de propósito, pra esse embedding aprender o "usuário/item
+          médio" em vez de ficar com inicialização aleatória sem gradiente.</p>
+        </div>
+        <div class="card">
+          <h4>Categoria pelo id real, não pelo roteado</h4>
+          <p>Bug real encontrado nesta sessão: a categoria era consultada <i>depois</i> de
+          rotear o item pra "unknown", descartando sinal de conteúdo válido pra qualquer item
+          ausente do treino. Corrigido pra consultar pelo <code>item_idx</code> real — o
+          embedding do item continua "unknown" (não aprende identidade que nunca viu), só a
+          categoria (sinal independente) deixa de ser jogada fora.</p>
+        </div>
+        <div class="card">
+          <h4>Duas cabeças, uma loss mascarada</h4>
+          <p><code>strong_head</code> prevê interação forte (cenário principal);
+          <code>view_head</code> prevê visualização (relevância ampla). Compartilham o trunk,
+          mas linhas de "visto e não comprado" são <b>mascaradas</b> da loss forte — só
+          alimentam a view. Sem essa máscara, o modelo aprendia a tratar "visto" como
+          "nunca visto" e regredia o cenário principal (seção 09).</p>
+        </div>
+        <div class="card">
+          <h4>Artefato auto-contido</h4>
+          <p><code>model.pkl</code> carrega a rede <b>e</b> o <code>StandardScaler</code>
+          ajustado no treino <b>e</b> os vocabulários/máscaras — treino, avaliação e serving
+          nunca reimplementam a normalização, eliminando risco de descasamento
+          treino↔serving por construção.</p>
+        </div>
+      </div>
+
+      <h3>Hiperparâmetros finais (<code>params.yaml</code>)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Parâmetro</th><th class="num">Valor</th><th>Por quê</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">embedding_dim</td><td class="num">64</td><td>usuário/item</td></tr>
+            <tr><td class="mono">cat_embedding_dim</td><td class="num">8</td><td>categoria — sinal auxiliar, mantido pequeno</td></tr>
+            <tr><td class="mono">hidden_dims</td><td class="num">[128, 64]</td><td>trunk compartilhado</td></tr>
+            <tr><td class="mono">dropout</td><td class="num">0.2</td><td>regularização do MLP</td></tr>
+            <tr><td class="mono">unknown_dropout</td><td class="num">0.1</td><td>treina o embedding de cold-start</td></tr>
+            <tr><td class="mono">weight_decay</td><td class="num">1e-4</td><td>parâmetro mais sensível do tuning (Fase 3)</td></tr>
+            <tr><td class="mono">view_loss_weight (λ)</td><td class="num">0.3</td><td>peso da loss auxiliar de view</td></tr>
+            <tr><td class="mono">num_negatives</td><td class="num">8</td><td>negativos por positivo, amostragem uniforme</td></tr>
+            <tr><td class="mono">view_sample_ratio</td><td class="num">8</td><td>views amostradas por positivo forte</td></tr>
+            <tr><td class="mono">early_stopping_patience</td><td class="num">5</td><td>sobre val-AUC da cabeça forte</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 06 — PIPELINE -->
+    <section id="pipeline">
+      <div class="eyebrow">06 — Engenharia</div>
+      <h2>Pipeline reprodutível: DVC + MLflow</h2>
+      <p class="lede">Seis estágios encadeados, cada um com dependências e parâmetros
+      declarados — <code>dvc repro</code> só reexecuta o que realmente mudou.</p>
+
+      <div class="diagram-wrap">
+<pre class="mermaid">
+flowchart LR
+    R1["data/raw/events.csv"] --> P["preprocess"]
+    R2["item_properties_*.csv"] --> CO["content"]
+    P --> FE["feature_eng"]
+    CO --> FE
+    FE --> TR["train"]
+    TR --> EV["evaluate"]
+    EV --> PR["promote"]
+</pre>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Estágio</th><th>O que faz</th><th>Saída</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td class="mono">preprocess</td><td>filtra usuários &lt;5 interações, encoda ids, ordena por tempo</td><td class="mono">data/interim/</td></tr>
+            <tr><td class="num">2</td><td class="mono">content</td><td>extrai categoryid mais recente por item (chunked, ~850MB de CSV)</td><td class="mono">data/content/</td></tr>
+            <tr><td class="num">3</td><td class="mono">feature_eng</td><td>features causais + categoria + split cronológico 70/10/20</td><td class="mono">data/processed/</td></tr>
+            <tr><td class="num">4</td><td class="mono">train</td><td>labeling + negative sampling → NCF multi-task com early stopping</td><td class="mono">model.pkl</td></tr>
+            <tr><td class="num">5</td><td class="mono">evaluate</td><td>classificação + ranking Top-K (forte/ampla, warm/cold) vs. popularidade</td><td class="mono">eval_metrics.json</td></tr>
+            <tr><td class="num">6</td><td class="mono">promote</td><td>melhor run histórico por <code>val_ndcg_at_20</code> → Registry Production</td><td class="mono">promoted_model.json</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>MLflow: dois runs por execução completa</h4>
+          <p><code>train</code> abre um run (<code>"ncf"</code>) logando hiperparâmetros +
+          <code>val_auc</code>/<code>val_ndcg_at_20</code> + o artefato. <code>evaluate</code>
+          abre <b>outro</b> run (<code>"evaluate"</code>) só pra logar as métricas de teste —
+          não treina nada. <code>promote</code> não abre run nenhum: só lê os existentes.</p>
+        </div>
+        <div class="card">
+          <h4>Promoção não é "o mais recente"</h4>
+          <p><code>find_best_model_run</code> varre <b>todo o histórico</b> do experimento e
+          promove o melhor por <code>val_ndcg_at_20</code> — um retreino não substitui
+          automaticamente o que já estava em produção se for pior. Isso quase causou um
+          incidente real (seção 09).</p>
+        </div>
+      </div>
+
+      <h4>Duas famílias de baseline — fácil de confundir</h4>
+      <p><code>train.model_type</code> aceita <code>dummy</code>, <code>logistic</code> ou
+      <code>ncf</code> (<code>src/models/baselines.py</code>, via <code>ModelFactory</code>) —
+      mas esses são baselines de <b>classificação</b> (chutar a classe majoritária / regressão
+      logística), avaliados nas mesmas métricas de AUC/F1 do NCF. É um adversário diferente do
+      baseline de <b>popularidade</b> (seção 07), que é de ranking. <code>dvc repro</code> só
+      treina o <code>model_type</code> corrente do <code>params.yaml</code> (hoje
+      <code>ncf</code>) — comparar os três exige rodar o estágio <code>train</code> três
+      vezes.</p>
+
+      <h4>Automação: <code>make compare-baselines</code></h4>
+      <p><code>scripts/compare_baselines.py</code> treina+avalia <code>dummy</code>,
+      <code>logistic</code> e <code>ncf</code> em sequência, restaura o
+      <code>params.yaml</code> ao final mesmo se algo falhar no meio
+      (<code>try/finally</code>) e promove <b>uma única vez</b>, deixando o Registry escolher
+      o melhor por <code>val_ndcg_at_20</code> entre todos os runs logados — seguro mesmo com
+      os baselines fracos também no MLflow. Execução real desta sessão, validando o pipeline
+      do zero:</p>
+      <div class="tbl-wrap">
+        <table>
+          <caption>metrics/baseline_comparison.json</caption>
+          <thead><tr><th>model_type</th><th class="num">val_auc</th><th class="num">val_ndcg@20</th><th class="num">test_auc</th><th class="num">test_f1</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">dummy</td><td class="num">0,500</td><td class="num">0,081</td><td class="num">0,500</td><td class="num">0,000</td></tr>
+            <tr><td class="mono">logistic</td><td class="num">0,682</td><td class="num">0,104</td><td class="num">0,646</td><td class="num">0,031</td></tr>
+            <tr><td class="mono">ncf</td><td class="num win">0,971</td><td class="num win">0,193</td><td class="num win">0,957</td><td class="num win">0,852</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><code>dummy</code> em AUC=0,5 confirma que ele não aprende nada — é o "chão"
+      esperado da classificação. <code>logistic</code> já supera bastante, mas fica bem
+      abaixo do NCF em todas as métricas. A promoção final escolheu <code>ncf</code> por
+      <code>val_ndcg_at_20</code>, consistente com os números da seção 08.</p>
+      <p>Achado na primeira execução desta comparação: os três runs de treino apareciam
+      <b>todos</b> com o mesmo nome na UI do MLflow (<code>mlflow.run_name</code> era um valor
+      fixo, nunca incorporava o <code>model_type</code>; <code>evaluate</code> sempre logava
+      como <code>"evaluate"</code>) — impossível distinguir qual run era qual sem abrir cada
+      um. Corrigido em <code>trainer.py</code>/<code>evaluate.py</code> para
+      <code>&lt;run_name&gt;-&lt;model_type&gt;</code>, e reexecutado pra confirmar: os seis
+      runs (<code>train-dummy</code>, <code>evaluate-dummy</code>, <code>train-logistic</code>,
+      <code>evaluate-logistic</code>, <code>train-ncf</code>, <code>evaluate-ncf</code>) já
+      aparecem distinguíveis na UI, com os mesmos números acima reproduzidos de ponta a ponta
+      — segunda confirmação, com seed fixa, de que o pipeline é determinístico.</p>
+
+      <h4>Serving</h4>
+      <p>FastAPI (<code>GET /recommend?user_id=&amp;top_k=</code>) carrega o modelo Production
+      do Registry (com fallback pro artefato local se o MLflow estiver fora do ar) e um
+      <code>FeatureStore</code> em memória. Usuário conhecido → pontuado pelo modelo entre os
+      5.000 itens mais populares não vistos. Usuário desconhecido, ou candidatos esgotados →
+      fallback de popularidade. A API nunca retorna lista vazia.</p>
+    </section>
+
+    <!-- 07 — AVALIAÇÃO -->
+    <section id="avaliacao">
+      <div class="eyebrow">07 — Metodologia</div>
+      <h2>Protocolo de avaliação</h2>
+      <p class="lede">A pergunta certa não é "o modelo classifica bem?" — é "o modelo rankeia
+      melhor que só mostrar os mais populares?". Todo o protocolo foi desenhado em volta
+      dessa pergunta.</p>
+
+      <div class="plain-box">
+        <span class="ico">🔎</span>
+        <div class="body"><span class="tag">Em termos simples</span>
+        Pra testar o modelo, montamos uma "prova" com as respostas certas escondidas entre
+        100 alternativas erradas, e vemos se ele consegue colocar as certas no topo da lista
+        — sempre comparando contra "só mostrar os produtos mais vendidos", que é o concorrente
+        mais óbvio e mais difícil de vencer numa base com tão pouco histórico por usuário.</div>
+      </div>
+
+      <h3>Ranking Top-K por usuário (sampled)</h3>
+      <ol class="step-list">
+        <li>Para cada usuário de teste, junta <b>todos os seus positivos</b> + <b>100
+        negativos</b> não vistos numa única lista de candidatos.</li>
+        <li>O <b>mesmo</b> conjunto de candidatos (mesma semente) é pontuado pelo modelo
+        <i>e</i> pelo baseline de popularidade — comparação justa, sem vantagem de dados.</li>
+        <li>Calcula HitRate/Precision/Recall/NDCG @{10, 20} por usuário, agrega por média.</li>
+      </ol>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Duas definições de relevância</h4>
+          <p><b>Forte</b>: só addtocart/transaction — intenção real de compra, cenário
+          principal. <b>Ampla</b>: inclui view (teto de 20 positivos/usuário) — mais próxima
+          de "engajamento geral", tarefa em que popularidade é quase ótima por definição.</p>
+        </div>
+        <div class="card">
+          <h4>Dois segmentos de usuário</h4>
+          <p><b>Warm</b>: usuário com histórico no treino. <b>Cold</b>: usuário que só
+          aparece em val/teste — zero sinal de embedding aprendido, só o fallback resolve.</p>
+        </div>
+      </div>
+
+      <h4>Por que "sampled" e não catálogo inteiro</h4>
+      <p>Rankear os ~104K itens do catálogo inteiro por usuário seria caro e, na esparsidade
+      desta base, é o padrão da literatura (He et al., NCF) usar candidatos amostrados. Tem
+      viés conhecido (Krichene &amp; Rendle, 2020) — válido pra comparação interna
+      consistente entre modelo e baseline, não como número absoluto.</p>
+
+      <h4>Por que a métrica de promoção não é AUC</h4>
+      <p><code>registry.metric: val_ndcg_at_20</code> — NDCG mede ranking, que é o produto de
+      verdade. Além disso, desde a spec 002 o ROC-AUC de classificação ficou inflado por
+      construção (ver caveat na seção 08): promover pelo AUC teria escolhido um modelo pelo
+      motivo errado.</p>
+    </section>
+
+    <!-- 08 — RESULTADOS -->
+    <section id="resultados">
+      <div class="eyebrow">08 — Números</div>
+      <h2>Resultados: antes e depois</h2>
+      <p class="lede">Três marcos: o baseline quebrado (pré-spec-001), a primeira versão
+      funcional (spec 001) e a versão final com multi-task e features de par (spec 002),
+      validada com <code>dvc repro</code> completo em dados reais.</p>
+
+      <h3>Relevância forte, usuários warm (585 usuários) — cenário principal</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Métrica</th><th class="num">Spec 001</th><th class="num">Popularidade</th><th class="num">Spec 002 (final)</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td>NDCG@10</td><td class="num">0,317</td><td class="num">0,303</td><td class="num win">0,379</td><td><span class="pill win">supera</span></td></tr>
+            <tr><td>NDCG@20</td><td class="num">0,356</td><td class="num">0,344</td><td class="num win">0,409</td><td><span class="pill win">supera</span></td></tr>
+            <tr><td>Recall@10</td><td class="num">0,447</td><td class="num">0,427</td><td class="num win">0,470</td><td><span class="pill win">supera</span></td></tr>
+            <tr><td>Recall@20</td><td class="num">0,592</td><td class="num">0,570</td><td class="num win">0,578</td><td><span class="pill win">supera</span></td></tr>
+            <tr><td>HitRate@20</td><td class="num">0,691</td><td class="num">0,670</td><td class="num win">0,677</td><td><span class="pill win">supera</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Relevância ampla, usuários warm (7.399 usuários) — o gap que a spec 002 fechou</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Métrica</th><th class="num">Spec 001</th><th class="num">Popularidade</th><th class="num">Spec 002 (final)</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td>NDCG@10</td><td class="num loss">0,207</td><td class="num">0,236</td><td class="num win">0,338</td><td><span class="pill win">virou vitória</span></td></tr>
+            <tr><td>NDCG@20</td><td class="num loss">0,249</td><td class="num">0,276</td><td class="num win">0,370</td><td><span class="pill win">virou vitória</span></td></tr>
+            <tr><td>Recall@10</td><td class="num">n/d</td><td class="num">0,332</td><td class="num win">0,400</td><td><span class="pill win">supera</span></td></tr>
+            <tr><td>Recall@20</td><td class="num loss">0,437</td><td class="num">0,466</td><td class="num win">0,509</td><td><span class="pill win">virou vitória</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Cold-start (relevância forte, 3.594 usuários) — limitação honesta</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Métrica</th><th class="num">Spec 002 (modelo puro)</th><th class="num">Popularidade</th><th>Leitura</th></tr></thead>
+          <tbody>
+            <tr><td>NDCG@10</td><td class="num loss">0,072</td><td class="num">0,307</td><td><span class="pill loss">perto do aleatório</span></td></tr>
+            <tr><td>NDCG@20</td><td class="num loss">0,100</td><td class="num">0,349</td><td><span class="pill loss">perto do aleatório</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Coberto operacionalmente pelo fallback de popularidade no serving — não é uma
+      métrica que o produto expõe ao usuário final sem mitigação.</p>
+
+      <h4>Classificação (teste rotulado 8:1) — leia com uma ressalva</h4>
+      <div class="stat-row">
+        <div class="stat"><span class="n mono">0,957</span><span class="l">ROC-AUC teste</span></div>
+        <div class="stat"><span class="n mono">0,888</span><span class="l">Average Precision</span></div>
+        <div class="stat"><span class="n mono">0,852</span><span class="l">F1</span></div>
+        <div class="stat"><span class="n mono">0,798</span><span class="l">Recall</span></div>
+      </div>
+      <p><b>Ressalva importante pra defesa:</b> esses números subiram muito (AUC 0,838 → 0,957)
+      quando as features de par entraram no contrato — em parte porque todo negativo
+      amostrado tem <code>user_item_view_count = 0</code> <i>por construção</i>, um atalho
+      que o classificador aprende fácil. Não é vazamento temporal, mas também não significa
+      que o ranking melhorou na mesma proporção — por isso as <b>métricas de ranking acima
+      são a referência real</b>, e a promoção no Registry usa NDCG, não AUC.</p>
+    </section>
+
+    <!-- 09 — A REGRESSÃO -->
+    <section id="regressao">
+      <div class="eyebrow">09 — A parte que mostra rigor</div>
+      <h2>A regressão que quase virou produção</h2>
+      <p class="lede">Esta é provavelmente a pergunta mais valiosa pra antecipar numa defesa:
+      <i>"vocês testaram em dados reais, ou só confiaram nos testes sintéticos?"</i>. A
+      resposta é que testamos — e um erro real apareceu.</p>
+
+      <div class="plain-box">
+        <span class="ico">🔎</span>
+        <div class="body"><span class="tag">Em termos simples</span>
+        Numa primeira tentativa de ensinar o modelo a prever "navegação" além de "compra",
+        sem querer pioramos a parte que já funcionava bem. Só descobrimos isso porque testamos
+        com dados reais antes de colocar em produção — e corrigimos sem perder o que tinha
+        dado certo antes.</div>
+      </div>
+
+      <ol class="step-list">
+        <li><b>Sintoma.</b> A primeira versão da loss combinada
+        (<code>strong_bce&nbsp;+&nbsp;λ·view_bce</code>, aplicada a todas as linhas do batch)
+        <b>regrediu o cenário principal</b>: NDCG@10 forte/warm caiu de 0,317 para 0,161 —
+        enquanto a relevância ampla melhorava (0,207 → 0,332). Ganho em um lugar, perda maior
+        em outro.</li>
+        <li><b>Diagnóstico por ablation.</b> Em vez de reverter tudo, isolei a variável:
+        desliguei só o multi-task (<code>view_sample_ratio: 0</code>), mantendo as features
+        de par. Resultado: o cenário principal não só voltou como <b>melhorou</b> (NDCG@10
+        0,341) — a causa estava especificamente na Frente B (multi-task), não na Frente A
+        (features de par).</li>
+        <li><b>Causa raiz.</b> ~528 mil linhas de <code>view</code> amostradas (vistas mas não
+        convertidas) entravam como negativo <i>também</i> na loss da cabeça forte. O modelo
+        aprendia que "visto mas não comprado" era equivalente a "nunca visto" — distinção que
+        o ranking do cenário principal penaliza duramente.</li>
+        <li><b>Correção cirúrgica.</b> Mascarar essas linhas
+        (<code>y_view=1&nbsp;AND&nbsp;y=0</code>) só da loss <code>strong</code> — elas
+        continuam alimentando a loss <code>view</code> normalmente. Depois da correção, os
+        dois cenários melhoraram <b>juntos</b>, sem trade-off.</li>
+      </ol>
+
+      <h4>Bônus: quase promovemos um modelo quebrado</h4>
+      <p>Ao rodar <code>dvc repro</code> pela primeira vez com o contrato v3, o estágio
+      <code>promote</code> escolheu um run <b>antigo</b> (contrato v2, de antes da spec 002)
+      porque tinha uma métrica melhor que o modelo recém-treinado — <code>find_best_model_run</code>
+      não filtra por compatibilidade de versão, só pela métrica. Esse modelo antigo, carregado
+      com o código atual, <b>quebrava</b> (<code class="mono">StandardScaler esperando 6
+      features, recebeu 8</code>). Limpei 20 runs incompatíveis do MLflow antes de seguir.</p>
+
+      <blockquote>Frase de defesa: <i>"o processo de validação encontrou dois problemas reais
+      — um de qualidade de modelo, um operacional — antes de qualquer um deles chegar em
+      produção. É exatamente o que o pipeline deveria fazer."</i></blockquote>
+    </section>
+
+    <!-- 10 — LIMITAÇÕES -->
+    <section id="limitacoes">
+      <div class="eyebrow">10 — Honestidade</div>
+      <h2>Limitações conhecidas</h2>
+      <p class="lede">Documentar limitação não é fraqueza de projeto — é sinal de que a
+      avaliação foi feita direito. Estas são reais e estão no <code>model_card.md</code>.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Cold-start real (zero-histórico)</h4>
+          <p>Sem nenhuma interação prévia, não há o que um embedding aprenda — o modelo puro
+          fica perto do aleatório (NDCG@10 0,072 vs. 0,307 da popularidade). Nem as features
+          de par nem o fix de categoria resolvem isso; é estrutural. Mitigação: fallback de
+          popularidade no serving, que é forte (NDCG@10 ≈ 0,31).</p>
+        </div>
+        <div class="card">
+          <h4>Métricas de classificação infladas</h4>
+          <p>Desde o contrato v3, ROC-AUC/AP/F1 sobem por causa de como as features de par são
+          construídas em relação aos negativos amostrados (ver seção 08) — não refletem
+          qualidade de ranking na mesma proporção. Métricas de ranking são a referência.</p>
+        </div>
+        <div class="card">
+          <h4>Métricas de ranking são sampled</h4>
+          <p>100 negativos por usuário, não o catálogo inteiro — viés conhecido (Krichene &amp;
+          Rendle, 2020). Válido pra comparação interna consistente, não como número
+          absoluto de "qualidade real".</p>
+        </div>
+        <div class="card">
+          <h4>Sem modelagem de sessão</h4>
+          <p>Nenhum sinal de sequência dentro de uma visita — cada evento é independente do
+          anterior na arquitetura. Candidatos do serving vêm de um pool fixo (5.000 itens
+          mais populares), não do catálogo inteiro.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 — TRABALHO FUTURO -->
+    <section id="futuro">
+      <div class="eyebrow">11 — Próximos passos</div>
+      <h2>Trabalho futuro (fora de escopo, documentado)</h2>
+      <p class="lede">Tudo aqui foi avaliado e deliberadamente adiado — não esquecido. Registrado
+      na seção "Fora de escopo" da spec <code>002-multitask-coldstart</code>.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Ideia</th><th>Por que ficou de fora agora</th></tr></thead>
+          <tbody>
+            <tr><td>Blend/ensemble modelo + popularidade</td><td>alternativa mais barata ao multi-task, cogitada mas não escolhida nesta rodada</td></tr>
+            <tr><td>Ramo GMF (produto escalar) somado ao MLP</td><td>ganho incremental esperado no cenário que já funciona; maior esforço de arquitetura</td></tr>
+            <tr><td>Busca sistemática de hiperparâmetro</td><td>tuning atual foi manual (7+2 rodadas); Optuna/grid ficaria mais eficiente</td></tr>
+            <tr><td>Modelagem de sessão/sequência</td><td>maior esforço teórico (GRU4Rec/SASRec-style); maior potencial isolado</td></tr>
+            <tr><td>Expor a cabeça <code>view</code> na API</td><td>hoje o multi-task só é consumido na avaliação offline — decisão de produto separada</td></tr>
+            <tr><td>Ranking full-catalog (validação)</td><td>sampled metrics bastam pra comparação interna; full-catalog seria só p/ validação final</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 12 — FAQ -->
+    <section id="faq">
+      <div class="eyebrow">12 — Preparação</div>
+      <h2>Perguntas prováveis da banca</h2>
+
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>Por que NDCG e não acurácia/AUC como métrica principal?</div>
+        <div class="faq-a"><p>Porque o produto é uma lista ordenada de recomendações, não uma
+        classificação binária isolada. NDCG penaliza acertos em posições baixas da lista —
+        exatamente o que importa quando só os primeiros K itens aparecem pro usuário. E desde
+        a spec 002, AUC ficou inflado por um artefato de construção das features (seção 08) —
+        promover por ele escolheria o modelo errado.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>Como vocês garantem que não há vazamento temporal?</div>
+        <div class="faq-a"><p>Duas camadas: (1) todas as agregações são causais/as-of por
+        construção — cada linha só usa eventos estritamente anteriores; (2) um teste
+        automatizado (<code>test_no_temporal_leakage_features_unchanged_by_future</code>)
+        verifica isso truncando o dataset e conferindo que as features das primeiras linhas
+        não mudam.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>O que acontece com um usuário totalmente novo?</div>
+        <div class="faq-a"><p>Cai no fallback de popularidade no serving — a API nunca retorna
+        lista vazia. É uma limitação honesta e documentada, não escondida: o modelo puro é
+        perto do aleatório nesse segmento (seção 10), e não fingimos que não é.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>Qual foi o maior erro do projeto, e como perceberam?</div>
+        <div class="faq-a"><p>Dois, cada um numa spec: negativos amostrados por
+        popularidade^0,75 (spec 001) ensinaram o modelo a punir itens populares e ele perdeu
+        pro próprio baseline (AUC 0,59). E a loss multi-task sem máscara (spec 002) regrediu
+        o cenário principal mesmo corrigindo a relevância ampla. Os dois foram achados
+        comparando contra o baseline de popularidade em dados reais — não em teste
+        sintético.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>Por que popularidade como baseline, e não outro modelo?</div>
+        <div class="faq-a"><p>Porque é o adversário que importa no mundo real: é barato,
+        difícil de superar numa base tão esparsa, e é literalmente o que um sistema sem
+        machine learning faria. Superar popularidade é a barra mínima de "isso vale o
+        investimento em ML".</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q"><span class="qmark">Q.</span>O pipeline é reprodutível de verdade?</div>
+        <div class="faq-a"><p>Sim — semente fixa (42) em split, labeling e treino;
+        <code>dvc repro</code> reexecuta só estágios cujas dependências/parâmetros mudaram
+        (rastreado por hash em <code>dvc.lock</code>); todo run fica registrado no MLflow com
+        hiperparâmetros e métricas. Essa sessão validou isso rodando o pipeline do zero mais
+        de uma vez sobre os mesmos dados.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      Sistema de Recomendação RetailRocket — FIAP MLE Fase 2, Tech Challenge · material de
+      apoio para apresentação e defesa técnica. Números extraídos de
+      <code>docs/model_card.md</code> e <code>metrics/eval_metrics.json</code> na branch
+      <code>improvements/model-features-training</code>.
+    </footer>
+  </main>
+</div>
+
+<script>
+  // scroll-spy for the rail nav
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('#navRail a'));
+    var map = links.map(function (a) {
+      return { link: a, el: document.querySelector(a.getAttribute('href')) };
+    }).filter(function (m) { return m.el; });
+
+    function onScroll() {
+      var pos = window.scrollY + window.innerHeight * 0.3;
+      var current = map[0];
+      map.forEach(function (m) {
+        if (m.el.offsetTop <= pos) current = m;
+      });
+      links.forEach(function (a) { a.classList.remove('active'); });
+      if (current) current.link.classList.add('active');
+    }
+    document.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+
+  // hero canvas: sparse interaction-matrix motif (>99.99% sparsity, literally)
+  (function () {
+    var canvas = document.getElementById('heroCanvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    function isDark() {
+      var t = document.documentElement.getAttribute('data-theme');
+      if (t === 'dark') return true;
+      if (t === 'light') return false;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    function draw() {
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      var dark = isDark();
+      ctx.fillStyle = dark ? '#12181c' : '#e7e2d6';
+      ctx.fillRect(0, 0, w, h);
+
+      var cell = 13;
+      var cols = Math.ceil(w / cell) + 1;
+      var rows = Math.ceil(h / cell) + 1;
+      var dotColor = dark ? 'rgba(233,228,216,0.10)' : 'rgba(29,33,38,0.09)';
+      var litColor = dark ? '#dc9552' : '#c9793a';
+
+      // deterministic-ish pseudo-random so it doesn't reflow oddly on resize
+      var seed = 1337;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return (seed % 10000) / 10000;
+      }
+
+      for (var y = 0; y < rows; y++) {
+        for (var x = 0; x < cols; x++) {
+          var px = x * cell + cell / 2;
+          var py = y * cell + cell / 2;
+          var r = rnd();
+          if (r < 0.014) {
+            ctx.fillStyle = litColor;
+            ctx.globalAlpha = 0.55 + rnd() * 0.35;
+            ctx.beginPath();
+            ctx.arc(px, py, 1.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          } else {
+            ctx.fillStyle = dotColor;
+            ctx.beginPath();
+            ctx.arc(px, py, 1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // fade gradient toward the text area for legibility
+      var grad = ctx.createLinearGradient(0, h * 0.35, 0, h);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, dark ? 'rgba(18,24,28,0.92)' : 'rgba(231,226,214,0.92)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    draw();
+    window.addEventListener('resize', draw);
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', draw);
+    new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  })();
+</script>
+
+<!--
+  Fora do visualizador de Artifacts da Claude (que renderiza <pre class="mermaid">
+  nativamente), este arquivo precisa carregar o mermaid.js sozinho pra os
+  diagramas das seções 05 e 06 aparecerem. Requer internet na primeira
+  abertura (CDN); sem conexão, os blocos aparecem como texto simples.
+-->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+</body>
+</html>

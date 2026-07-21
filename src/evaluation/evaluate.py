@@ -263,12 +263,12 @@ def _flatten(metrics: dict, prefix: str = "") -> dict[str, float]:
     return flat
 
 
-def _log_and_save(metrics: dict, mlflow_p: dict) -> None:
+def _log_and_save(metrics: dict, mlflow_p: dict, model_type: str) -> None:
     """Loga métricas no MLflow e persiste o JSON para o DVC rastrear."""
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(mlflow_p["experiment_name"])
-    with mlflow.start_run(run_name="evaluate"):
+    with mlflow.start_run(run_name=f"evaluate-{model_type}"):
         mlflow.log_metrics(_flatten(metrics))
     out = METRICS_DIR / "eval_metrics.json"
     out.write_text(json.dumps(metrics, indent=2))
@@ -298,7 +298,7 @@ def run() -> None:
     }
     logger.info("Métricas de teste: %s", json.dumps(metrics["classification"]))
     _save_plots(y_test, y_proba)
-    _log_and_save(metrics, params["mlflow"])
+    _log_and_save(metrics, params["mlflow"], params["train"]["model_type"])
 
 
 if __name__ == "__main__":

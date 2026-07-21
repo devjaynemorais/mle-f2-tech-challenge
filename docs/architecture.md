@@ -161,7 +161,7 @@ Fonte: [`src/evaluation/evaluate.py`](../src/evaluation/evaluate.py) +
   segmentadas **warm** (usuário no treino) vs. **cold** (FR-011).
 - `_save_plots` grava `metrics/plots/{roc,pr}_curve.json`; métricas em
   `metrics/eval_metrics.json` (aninhado) e achatadas num run MLflow
-  (`run_name="evaluate"`).
+  (`run_name=f"evaluate-{model_type}"`, ex.: `evaluate-ncf`).
 
 ### 1.5 `promote` — Model Registry (Staging → Production)
 

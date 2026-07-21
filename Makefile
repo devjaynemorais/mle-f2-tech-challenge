@@ -2,7 +2,7 @@
         dvc-repro dvc-pull dvc-push \
         mlflow compose-build compose-full compose-down \
         compose-pipeline compose-promote \
-        validate-env preprocess feature-eng train evaluate promote
+        validate-env preprocess feature-eng train evaluate promote compare-baselines
 
 # ─── Ambiente ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +53,11 @@ evaluate:
 # Registra o melhor run no MLflow Registry e promove Staging → Production
 promote:
 	poetry run python -m src.models.registry
+
+# Roda train+evaluate para dummy, logistic e ncf (nessa ordem), restaura o
+# params.yaml e promove o melhor run no final. Ver scripts/compare_baselines.py
+compare-baselines:
+	poetry run python -m scripts.compare_baselines
 
 # ─── DVC ──────────────────────────────────────────────────────────────────────
 

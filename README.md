@@ -156,6 +156,20 @@ make evaluate
 make promote
 ```
 
+`train.model_type` (`params.yaml`) aceita `ncf`, `logistic` ou `dummy`
+(baselines de **classificação** — não confundir com o baseline de
+**popularidade** usado na avaliação de ranking, seção "Métricas de
+Avaliação"). Cada estágio só treina/avalia o `model_type` corrente; para
+comparar os três de uma vez, restaurando o `params.yaml` ao final:
+
+```bash
+make compare-baselines   # treina+avalia dummy, logistic, ncf; promove o melhor no final
+```
+
+Ver `scripts/compare_baselines.py` — cada run fica nomeado
+`train-<model_type>`/`evaluate-<model_type>` no MLflow, então os três
+aparecem distinguíveis na UI (`Runs`).
+
 ## Desenvolvimento
 
 ```bash

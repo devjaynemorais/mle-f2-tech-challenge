@@ -34,10 +34,21 @@ $env:PATH = "$PWD\.venv\Scripts;$env:PATH"; $env:PYTHONUTF8 = "1"; dvc repro tra
 ```
 
 Cada execução cria um novo run no MLflow (experimento
-`recommendation_system`, nome do run = `mlflow.run_name` em `params.yaml`)
-e salva o artefato em `models/artifacts/<run_id>/model.pkl`. Rodar de novo
-**não sobrescreve** runs anteriores — o `promote` escolhe o melhor entre
-todos pela métrica do registry (seção 6).
+`recommendation_system`, nome do run = `<mlflow.run_name>-<model_type>`,
+ex.: `train-ncf`) e salva o artefato em `models/artifacts/<run_id>/model.pkl`.
+Rodar de novo **não sobrescreve** runs anteriores — o `promote` escolhe o
+melhor entre todos pela métrica do registry (seção 6).
+
+`train.model_type` também aceita `logistic` e `dummy` — baselines de
+classificação simples (regressão logística / classe majoritária), úteis
+para confirmar que o NCF realmente aprende algo antes de comparar contra o
+baseline de popularidade (que é de ranking, seção "Métricas de Avaliação"
+do `README.md`). Para treinar+avaliar os três em sequência sem editar
+`params.yaml` manualmente a cada vez:
+
+```bash
+make compare-baselines   # scripts/compare_baselines.py — treina, avalia e promove o melhor
+```
 
 ## 3. O que o estágio faz (`src/training/trainer.py`)
 

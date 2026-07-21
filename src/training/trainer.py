@@ -231,7 +231,7 @@ def _train_and_log(params: dict) -> None:
     X_train, y_train, X_val, y_val, y_view_train = build_training_arrays(
         train_df, val_df, params["labeling"]
     )
-    run_name = mlflow_p.get("run_name", train_p["model_type"])
+    run_name = f"{mlflow_p.get('run_name', 'train')}-{train_p['model_type']}"
     with mlflow.start_run(run_name=run_name) as active_run:
         mlflow.log_params(
             {k: v for k, v in train_p.items() if not isinstance(v, (list, dict))}
