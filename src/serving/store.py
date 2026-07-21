@@ -37,6 +37,13 @@ class FeatureStore:
             sorted(self._item_vc, key=lambda i: self._item_vc[i], reverse=True),
             dtype="int64",
         )
+        self._rank = {int(item): pos + 1 for pos, item in enumerate(self._popular)}
+        self._item_cat = self._build_item_categories(interactions)
+        # Referência crua p/ a timeline da demo — categoria/popularidade do
+        # item vêm de item_profile(), não precisam duplicar aqui.
+        self._timeline_df = interactions[
+            ["user_idx", "item_idx", "event", "timestamp"]
+        ].copy()
 
     @classmethod
     def from_processed(cls, processed_dir: Path) -> FeatureStore:
@@ -100,6 +107,18 @@ class FeatureStore:
             for u, items in df.groupby("user_idx")["item_idx"]
         }
 
+    def _build_item_categories(self, df: pd.DataFrame) -> dict[int, int]:
+        """Mapeia item_idx → cat_idx (mesmo espaço do embedding de categoria).
+
+        Ausente em datasets sintéticos de teste que não passaram pelo estágio
+        ``feature_eng`` (sem coluna ``cat_idx``) — nesse caso o dict fica
+        vazio e ``item_category()`` devolve ``None``.
+        """
+        if "cat_idx" not in df.columns:
+            return {}
+        first_cat = df.groupby("item_idx")["cat_idx"].first()
+        return {int(i): int(c) for i, c in first_cat.items()}
+
     @property
     def n_users(self) -> int:
         """Número de usuários conhecidos."""
@@ -149,3 +168,67 @@ class FeatureStore:
     def popular_items(self, k: int) -> list[tuple[int, int]]:
         """Retorna os top-k (item_idx, view_count) por popularidade."""
         return [(int(i), self._item_vc[int(i)]) for i in self._popular[:k]]
+
+    def item_profile(self, item_idx: int) -> dict:
+        """Retorna um perfil mínimo do item — pra dar identidade a um item_idx.
+
+        O dataset é anonimizado (sem nome/título de produto), então
+        ``cat_idx`` (mesmo espaço do embedding de categoria do modelo) e a
+        posição no ranking de popularidade são o máximo de "quem é esse
+        item" que dá pra mostrar honestamente.
+        """
+        item_idx = int(item_idx)
+        return {
+            "item_idx": item_idx,
+            "cat_idx": self._item_cat.get(item_idx),
+            "view_count": self._item_vc.get(item_idx, 0),
+            "popularity_rank": self._rank.get(item_idx),
+        }
+
+    def timeline(self, user_idx: int, limit: int = 15) -> list[dict]:
+        """Retorna os últimos ``limit`` eventos reais do usuário, em ordem.
+
+        Cada evento já vem enriquecido com o perfil do item (categoria,
+        popularidade) — é o que a demo usa pra mostrar "o que esse usuário
+        fez" antes de pedir a recomendação. Vazio se o usuário é desconhecido.
+        """
+        user_idx = int(user_idx)
+        sub = self._timeline_df.loc[self._timeline_df["user_idx"] == user_idx]
+        if sub.empty:
+            return []
+        sub = sub.sort_values("timestamp").tail(limit)
+        return [
+            {
+                "timestamp": row.timestamp.isoformat(),
+                "event": row.event,
+                **self.item_profile(row.item_idx),
+            }
+            for row in sub.itertuples()
+        ]
+
+    def sample_users(self) -> dict[str, dict]:
+        """Retorna 3 usuários reais representativos para a demo interativa.
+
+        ``active`` (maior frequency), ``sparse`` (menor frequency entre os
+        conhecidos) e ``cold`` (id garantidamente ausente, dispara o
+        fallback de popularidade no serving).
+        """
+        active_id = max(self._users, key=lambda u: self._users[u][0])
+        sparse_id = min(self._users, key=lambda u: self._users[u][0])
+        cold_id = max(self._users) + 1
+
+        def _describe(user_idx: int) -> dict:
+            freq, eng, rec = self._users[user_idx]
+            return {
+                "user_id": user_idx,
+                "known": True,
+                "frequency": freq,
+                "engagement_score": eng,
+                "recency_days": rec,
+            }
+
+        return {
+            "active": _describe(active_id),
+            "sparse": _describe(sparse_id),
+            "cold": {"user_id": cold_id, "known": False},
+        }
