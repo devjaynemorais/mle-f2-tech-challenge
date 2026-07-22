@@ -173,6 +173,9 @@
       border-radius: 2px;
       position: relative;
       flex-shrink: 0;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
     }
     .note::before {
       content: '';
@@ -317,11 +320,11 @@
     </div>
     <div class="header-divider"></div>
     <div class="meta-fields">
-      <div class="meta-field">
+      <div class="meta-field" style="flex:2">
         <label>Designed For</label>
-        <input id="m-for" value="E-commerce (RetailRocket)" />
+        <input id="m-for" value="E-commerce (RetailRocket)" title="E-commerce (RetailRocket)" />
       </div>
-      <div class="meta-field">
+      <div class="meta-field" style="flex:2">
         <label>Designed by</label>
         <input id="m-by" value="" />
       </div>
@@ -373,7 +376,10 @@
   function render(D) {
     document.getElementById('canvas-wrapper').style.display = 'block';
 
-    document.getElementById('m-by').value   = D.team.map(t => t.split('—')[0].trim()).join(', ');
+    const byNames = D.team.map(t => t.split('—')[0].trim()).join(', ');
+    const mBy = document.getElementById('m-by');
+    mBy.value = byNames;
+    mBy.title = byNames;
     document.getElementById('m-date').value = new Date().toLocaleDateString('pt-BR');
 
     const g = document.getElementById('canvas-grid');
