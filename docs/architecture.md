@@ -80,7 +80,7 @@ Fonte: [`src/data/preprocess.py`](../src/data/preprocess.py) +
 2. Aplica `RetailRocketPreprocessor` (Strategy pattern — implementa
    `PreprocessStrategy`):
    - **Filtra usuários frios**: remove `visitorid` com menos de
-     `min_interactions` (padrão **5**) eventos.
+     `min_interactions` (`params.yaml`, hoje **5**) eventos.
    - **Encoda IDs**: `pd.factorize` mapeia `visitorid → user_idx` e
      `itemid → item_idx` como inteiros contíguos base-0.
    - **Ordena** por `timestamp`.

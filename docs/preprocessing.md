@@ -43,10 +43,11 @@ dvc repro
 | 3 | Converte `itemid` → `item_idx` (int contíguo, base 0) | `RetailRocketPreprocessor._encode_ids()` |
 | 4 | Ordena por `timestamp` | `preprocessor.preprocess()` |
 
-### Parâmetros (em `configs/params.yaml`)
+### Parâmetros (em `params.yaml`)
 
 ```yaml
 preprocess:
+  min_interactions: 5
   random_state: 42
 ```
 

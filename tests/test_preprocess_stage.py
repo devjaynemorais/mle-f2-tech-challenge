@@ -11,7 +11,9 @@ from src.data import preprocess
 
 def _write_params(tmp_path: Path) -> Path:
     params_path = tmp_path / "params.yaml"
-    params_path.write_text(yaml.dump({"preprocess": {"random_state": 42}}))
+    params_path.write_text(
+        yaml.dump({"preprocess": {"min_interactions": 5, "random_state": 42}})
+    )
     return params_path
 
 

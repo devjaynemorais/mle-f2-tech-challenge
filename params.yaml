@@ -1,4 +1,6 @@
 preprocess:
+  min_interactions: 5       # usuários com menos eventos que isso são descartados
+                            # (ver docs/eda.md — decisões para o pré-processamento)
   test_size: 0.2
   val_size: 0.1
   random_state: 42
