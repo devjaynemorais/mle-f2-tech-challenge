@@ -4,31 +4,37 @@
         compose-pipeline compose-promote \
         validate-env preprocess feature-eng train evaluate promote compare-baselines
 
+# `poetry` nem sempre está no PATH (ex.: Windows Store Python instala o script
+# de entrada numa pasta de usuário que não entra no PATH automaticamente).
+# `python -m poetry` não depende dessa resolução — só precisa que o pacote
+# `poetry` esteja instalado no interpretador `python` corrente.
+POETRY := python -m poetry
+
 # ─── Ambiente ─────────────────────────────────────────────────────────────────
 
 env:
 	pip install poetry==1.8.3 --quiet
-	poetry install --with dev
+	$(POETRY) install --with dev
 
 install: env
 
 # ─── Qualidade de Código ──────────────────────────────────────────────────────
 
 lint:
-	poetry run ruff check src/ tests/
-	poetry run ruff format --check src/ tests/
+	$(POETRY) run ruff check src/ tests/
+	$(POETRY) run ruff format --check src/ tests/
 
 format:
-	poetry run ruff check --fix src/ tests/
-	poetry run ruff format src/ tests/
+	$(POETRY) run ruff check --fix src/ tests/
+	$(POETRY) run ruff format src/ tests/
 
 # ─── Testes ───────────────────────────────────────────────────────────────────
 
 test:
-	poetry run pytest tests/ -v
+	$(POETRY) run pytest tests/ -v
 
 test-cov:
-	poetry run pytest tests/ --cov=src --cov-report=html
+	$(POETRY) run pytest tests/ --cov=src --cov-report=html
 
 # ─── Pipeline Completo ────────────────────────────────────────────────────────
 
@@ -39,36 +45,36 @@ setup: validate-env dvc-repro
 # ─── Estágios individuais do pipeline ─────────────────────────────────────────
 
 preprocess:
-	poetry run python -m src.data.preprocess
+	$(POETRY) run python -m src.data.preprocess
 
 feature-eng:
-	poetry run python -m src.features.build_features
+	$(POETRY) run python -m src.features.build_features
 
 train:
-	poetry run python -m src.training.trainer
+	$(POETRY) run python -m src.training.trainer
 
 evaluate:
-	poetry run python -m src.evaluation.evaluate
+	$(POETRY) run python -m src.evaluation.evaluate
 
 # Registra o melhor run no MLflow Registry e promove Staging → Production
 promote:
-	poetry run python -m src.models.registry
+	$(POETRY) run python -m src.models.registry
 
 # Roda train+evaluate para dummy, logistic e ncf (nessa ordem), restaura o
 # params.yaml e promove o melhor run no final. Ver scripts/compare_baselines.py
 compare-baselines:
-	poetry run python -m scripts.compare_baselines
+	$(POETRY) run python -m scripts.compare_baselines
 
 # ─── DVC ──────────────────────────────────────────────────────────────────────
 
 dvc-repro:
-	poetry run dvc repro
+	$(POETRY) run dvc repro
 
 dvc-pull:
-	poetry run dvc pull
+	$(POETRY) run dvc pull
 
 dvc-push:
-	poetry run dvc push
+	$(POETRY) run dvc push
 
 # ─── Serviços Locais ──────────────────────────────────────────────────────────
 
@@ -76,7 +82,7 @@ dvc-push:
 #   make mlflow MLFLOW_PORT=5001   (e ajuste MLFLOW_TRACKING_URI no .env)
 MLFLOW_PORT ?= 5000
 mlflow:
-	poetry run mlflow server \
+	$(POETRY) run mlflow server \
 		--host 0.0.0.0 \
 		--port $(MLFLOW_PORT) \
 		--backend-store-uri sqlite:///mlflow.db \
@@ -87,7 +93,7 @@ mlflow:
 # Desktop), rode:  make api API_PORT=8001
 API_PORT ?= 8000
 api:
-	poetry run uvicorn src.serving.api:app \
+	$(POETRY) run uvicorn src.serving.api:app \
 		--host 0.0.0.0 --port $(API_PORT) --reload
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
@@ -120,4 +126,4 @@ compose-down:
 # ─── Utilitários ──────────────────────────────────────────────────────────────
 
 validate-env:
-	poetry run python scripts/validate_env.py
+	$(POETRY) run python scripts/validate_env.py
