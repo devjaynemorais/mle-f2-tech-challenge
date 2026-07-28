@@ -26,7 +26,7 @@ def setup_experiment(experiment_name: str | None = None) -> str:
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     experiment = mlflow.set_experiment(name)
     logger.info("MLflow experiment: %s (id=%s)", name, experiment.experiment_id)
-    return experiment.experiment_id
+    return str(experiment.experiment_id)
 
 
 def _has_model_artifact(client: MlflowClient, run_id: str) -> bool:

@@ -8,7 +8,6 @@ import pytest
 
 from src.data.preprocessor import DefaultPreprocessor, RetailRocketPreprocessor
 
-
 # ---------------------------------------------------------------------------
 # Fixtures compartilhadas
 # ---------------------------------------------------------------------------

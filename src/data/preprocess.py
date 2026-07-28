@@ -24,6 +24,7 @@ def run() -> None:
     """
     params = yaml.safe_load(open(PARAMS_PATH))["preprocess"]
     random_state: int = params["random_state"]
+    min_interactions: int = params["min_interactions"]
 
     INTERIM_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -36,7 +37,9 @@ def run() -> None:
 
     df = pd.read_csv(RAW_FILE)
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    preprocessor = RetailRocketPreprocessor(random_state=random_state)
+    preprocessor = RetailRocketPreprocessor(
+        min_interactions=min_interactions, random_state=random_state
+    )
     df_clean = preprocessor.preprocess(df)
 
     df_clean.to_parquet(INTERIM_DIR / "data_clean.parquet", index=False)

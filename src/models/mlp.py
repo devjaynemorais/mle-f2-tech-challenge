@@ -1,113 +1,348 @@
-"""Modelo principal: MLP treinado com PyTorch.
+"""Modelo principal: NCF (Neural Collaborative Filtering) em PyTorch.
 
-Registrado na Factory com o nome "mlp".
-Usa BCEWithLogitsLoss para classificação binária e early stopping
-para evitar overfitting.
+Registrado na Factory com o nome "ncf". Arquitetura (FR-004, D4):
+embeddings de usuário e item (+ categoria do item, para cold-start de
+conteúdo) concatenados às features contínuas escaladas → MLP → duas
+cabeças de saída (spec 002, FR-002/D2): ``strong`` (interação forte —
+addtocart/transaction, cenário principal) e ``view`` (interação ampla,
+auxiliar) compartilhando o mesmo trunk/embeddings.
+
+O ÚLTIMO índice de cada tabela de embedding (``n_users``/``n_items``/
+``n_categories``) é reservado para "unknown": ids ausentes do treino são
+roteados para ele — o índice 0 é um id real do ``factorize`` (D4).
+
+O modelo é AUTO-CONTIDO (D5): o scaler das features contínuas é ajustado
+no ``fit`` e serializado junto no pickle, garantindo que treino, avaliação
+e serving apliquem a mesma transformação (FR-007).
 """
+
+from __future__ import annotations
+
+import copy
+from typing import cast
 
 import numpy as np
 import torch
-import torch.nn as nn
+import torch.nn.functional as F  # noqa: N812 (convenção padrão do PyTorch)
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import StandardScaler
+from torch import nn
 
+from src.data.dataset import RetailRocketDataset
+from src.data.feature_contract import CONT_COLS, CONTRACT_VERSION, ID_COLS
 from src.models.base import RecommenderBase
 from src.models.factory import ModelFactory
 
+_PREDICT_BATCH = 65_536
+_MIN_IMPROVEMENT = 1e-5
 
-class _MLPNet(nn.Module):
-    """Rede feed-forward interna (não usada diretamente fora deste módulo).
+# Índice do logit retornado por _NCFNet.forward() para cada cabeça (D2).
+_HEAD_INDEX = {"strong": 0, "view": 1}
 
-    Estrutura: Linear → ReLU → Dropout → ... → Linear (1 saída por amostra)
+# Features de cauda pesada (power-law): log1p antes do scaler, senão a
+# informação de popularidade fica espremida em z-scores inúteis.
+_LOG_SCALE_COLS = ("frequency", "engagement_score", "view_count")
+_LOG_SCALE_IDX = [CONT_COLS.index(c) for c in _LOG_SCALE_COLS]
+
+
+class _NCFNet(nn.Module):
+    """Rede interna: embeddings + contínuas → trunk → duas cabeças (D2).
+
+    Embeddings (user, item, categoria) concatenados às contínuas passam
+    por um trunk compartilhado; duas cabeças lineares (``strong``,
+    ``view``) pontuam a partir da mesma representação latente.
     """
 
     def __init__(
-        self, input_dim: int, hidden_dims: list[int], dropout: float = 0.2
+        self,
+        n_users: int,
+        n_items: int,
+        n_categories: int,
+        embedding_dim: int,
+        cat_embedding_dim: int,
+        n_cont: int,
+        hidden_dims: list[int],
+        dropout: float,
     ) -> None:
         super().__init__()
+        # +1: último índice reservado para "unknown" (D4).
+        self.user_emb = nn.Embedding(n_users + 1, embedding_dim)
+        self.item_emb = nn.Embedding(n_items + 1, embedding_dim)
+        self.cat_emb = nn.Embedding(n_categories + 1, cat_embedding_dim)
         layers: list[nn.Module] = []
-        prev = input_dim
+        prev = 2 * embedding_dim + cat_embedding_dim + n_cont
         for dim in hidden_dims:
             layers += [nn.Linear(prev, dim), nn.ReLU(), nn.Dropout(dropout)]
             prev = dim
-        layers.append(nn.Linear(prev, 1))  # saída: 1 logit por amostra
-        self.net = nn.Sequential(*layers)
+        self.trunk = nn.Sequential(*layers)
+        self.strong_head = nn.Linear(prev, 1)
+        self.view_head = nn.Linear(prev, 1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x).squeeze(-1)
+    def forward(
+        self,
+        users: torch.Tensor,
+        items: torch.Tensor,
+        cats: torch.Tensor,
+        cont: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = torch.cat(
+            [self.user_emb(users), self.item_emb(items), self.cat_emb(cats), cont],
+            dim=1,
+        )
+        h = self.trunk(x)
+        return self.strong_head(h).squeeze(-1), self.view_head(h).squeeze(-1)
 
 
-@ModelFactory.register("mlp")
-class MLPRecommender(RecommenderBase):
-    """MLP para recomendação binária (interagiu ou não com o item).
+@ModelFactory.register("ncf")
+class NCFRecommender(RecommenderBase):
+    """NCF para recomendação com feedback implícito (positivo vs. negativo).
+
+    A entrada de ``fit``/``predict_proba`` é a matriz na ordem do contrato de
+    features (ids crus + contínuas cruas); ids e escala são tratados aqui.
 
     Args:
-        input_dim: Número de features de entrada.
-        hidden_dims: Tamanhos das camadas ocultas.
-        dropout: Taxa de dropout aplicada após cada camada oculta.
-        lr: Taxa de aprendizado.
-        epochs: Número máximo de épocas de treino.
+        n_users: Tamanho do vocabulário de usuários (max user_idx + 1).
+        n_items: Tamanho do vocabulário de itens (max item_idx + 1).
+        n_categories: Nº de categorias de item conhecidas.
+        item_categories: Array (n_items + 1) item_idx → cat_idx; posições sem
+            categoria recebem ``n_categories`` (unknown).
+        known_users: Máscara bool (n_users) — usuários vistos no TREINO.
+        known_items: Máscara bool (n_items) — itens vistos no TREINO.
+        embedding_dim: Dimensão dos embeddings de usuário/item.
+        cat_embedding_dim: Dimensão do embedding de categoria.
+        hidden_dims: Tamanhos das camadas ocultas do MLP.
+        dropout: Taxa de dropout.
+        unknown_dropout: Fração de ids de treino roteada para o índice
+            unknown — treina o embedding de cold-start (D4).
+        view_loss_weight: Peso (λ) da loss auxiliar de ``view`` somada à
+            loss principal (interação forte) — spec 002, FR-002/D3. Só tem
+            efeito se ``y_view`` for passado a ``fit()``; default 0.0
+            (multi-task desligado, comportamento idêntico ao anterior).
+        lr: Taxa de aprendizado (Adam).
+        weight_decay: Regularização L2 do Adam.
+        epochs: Máximo de épocas.
         batch_size: Tamanho do mini-batch.
-        patience: Épocas sem melhora antes do early stopping.
+        patience: Épocas sem melhora na métrica de validação antes de parar.
         random_state: Semente para reprodutibilidade.
     """
 
     def __init__(
         self,
-        input_dim: int = 64,
+        n_users: int = 1,
+        n_items: int = 1,
+        n_categories: int = 0,
+        item_categories: np.ndarray | None = None,
+        known_users: np.ndarray | None = None,
+        known_items: np.ndarray | None = None,
+        embedding_dim: int = 32,
+        cat_embedding_dim: int = 8,
         hidden_dims: list[int] | None = None,
         dropout: float = 0.2,
+        unknown_dropout: float = 0.0,
+        view_loss_weight: float = 0.0,
         lr: float = 1e-3,
-        epochs: int = 50,
-        batch_size: int = 256,
-        patience: int = 5,
+        weight_decay: float = 0.0,
+        epochs: int = 20,
+        batch_size: int = 1024,
+        patience: int = 3,
         random_state: int = 42,
     ) -> None:
-        self.input_dim = input_dim
+        self.n_users = n_users
+        self.n_items = n_items
+        self.n_categories = n_categories
+        self.item_categories = (
+            item_categories
+            if item_categories is not None
+            else np.full(n_items + 1, n_categories, dtype="int64")
+        )
+        self.known_users = (
+            known_users if known_users is not None else np.ones(n_users, dtype=bool)
+        )
+        self.known_items = (
+            known_items if known_items is not None else np.ones(n_items, dtype=bool)
+        )
+        self.embedding_dim = embedding_dim
+        self.cat_embedding_dim = cat_embedding_dim
         self.hidden_dims = hidden_dims or [128, 64]
         self.dropout = dropout
+        self.unknown_dropout = unknown_dropout
+        self.view_loss_weight = view_loss_weight
         self.lr = lr
+        self.weight_decay = weight_decay
         self.epochs = epochs
         self.batch_size = batch_size
         self.patience = patience
         self.random_state = random_state
-        self._net: _MLPNet | None = None  # criado no fit()
+        self.contract_version = CONTRACT_VERSION
+        self._scaler: StandardScaler | None = None
+        self._net: _NCFNet | None = None
+        self._multitask: bool = False
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "MLPRecommender":
-        """Treina a rede com early stopping.
+    def _route_ids(
+        self, ids: np.ndarray, known: np.ndarray, vocab_size: int
+    ) -> np.ndarray:
+        """Roteia ids fora do vocabulário/treino para o índice unknown (D4)."""
+        idx = ids.astype("int64")
+        routed = np.full(idx.shape, vocab_size, dtype="int64")
+        valid = (idx >= 0) & (idx < vocab_size)
+        routed[valid] = np.where(known[idx[valid]], idx[valid], vocab_size)
+        return routed
+
+    def _transform_cont(self, X: np.ndarray) -> np.ndarray:
+        """log1p nas colunas de cauda pesada — aplicado antes do scaler."""
+        cont = X[:, len(ID_COLS) :].astype("float64", copy=True)
+        cont[:, _LOG_SCALE_IDX] = np.log1p(np.maximum(cont[:, _LOG_SCALE_IDX], 0.0))
+        return cont
+
+    def _split_matrix(
+        self, X: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Separa a matriz do contrato em (users, items, cats, cont escalado)."""
+        assert self._scaler is not None, "Chame fit() antes."
+        users = self._route_ids(X[:, 0], self.known_users, self.n_users)
+        items = self._route_ids(X[:, 1], self.known_items, self.n_items)
+        # Categoria é consultada pelo item_idx REAL (clipado ao intervalo
+        # válido), não pelo índice já roteado p/ "unknown" — um item ausente
+        # do treino mas com categoria conhecida (estágio content) não pode
+        # ter esse sinal descartado só porque seu embedding é o "unknown"
+        # compartilhado (spec 002, FR-006/D4).
+        real_items = np.clip(X[:, 1].astype("int64"), 0, self.n_items)
+        cats = self.item_categories[real_items]
+        cont = self._scaler.transform(self._transform_cont(X)).astype("float32")
+        return users, items, cats, cont
+
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        X_val: np.ndarray | None = None,
+        y_val: np.ndarray | None = None,
+        y_view: np.ndarray | None = None,
+    ) -> NCFRecommender:
+        """Treina a rede com early stopping por métrica de VALIDAÇÃO (FR-010).
 
         Args:
-            X: Matriz de features (n_amostras, input_dim).
-            y: Rótulos binários (n_amostras,).
+            X: Matriz de treino na ordem do contrato de features.
+            y: Rótulos binários (1 = positivo, 0 = negativo amostrado).
+            X_val: Matriz de validação (mesma ordem). Se fornecida, o early
+                stopping usa o ROC-AUC de validação (sempre sobre a cabeça
+                ``strong`` — FR-005); senão, a loss de treino.
+            y_val: Rótulos de validação (interação forte).
+            y_view: Rótulos auxiliares de ``view`` alinhados a ``y`` (spec
+                002, FR-001). Se ``None`` (default), a loss auxiliar é
+                ignorada e o comportamento é idêntico ao de antes do
+                multi-task — a cabeça ``view`` fica com sua init aleatória,
+                sem receber gradiente.
         """
         torch.manual_seed(self.random_state)
-        X_t = torch.tensor(np.array(X), dtype=torch.float32)
-        y_t = torch.tensor(np.array(y), dtype=torch.float32)
-        self._net = _MLPNet(self.input_dim, self.hidden_dims, self.dropout)
-        optimizer = torch.optim.Adam(self._net.parameters(), lr=self.lr)
-        loss_fn = nn.BCEWithLogitsLoss()
+        X = np.asarray(X, dtype="float32")
+        y = np.asarray(y, dtype="float32")
+        self._multitask = y_view is not None
+        self._scaler = StandardScaler().fit(self._transform_cont(X))
+        users, items, cats, cont = self._split_matrix(X)
+        users, items, cats = self._apply_unknown_dropout(users, items)
+        dataset = RetailRocketDataset(users, items, cont, y, cats=cats, y_view=y_view)
         loader = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(X_t, y_t),
+            dataset,
             batch_size=self.batch_size,
             shuffle=True,
+            generator=torch.Generator().manual_seed(self.random_state),
         )
-        self._run_early_stopping(loader, optimizer, loss_fn)
+        self._net = _NCFNet(
+            self.n_users,
+            self.n_items,
+            self.n_categories,
+            self.embedding_dim,
+            self.cat_embedding_dim,
+            len(CONT_COLS),
+            self.hidden_dims,
+            self.dropout,
+        )
+        optimizer = torch.optim.Adam(
+            self._net.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
+        self._run_early_stopping(loader, optimizer, X_val, y_val)
         return self
+
+    def _apply_unknown_dropout(
+        self, users: np.ndarray, items: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Roteia uma fração dos ids de treino para o índice unknown (D4).
+
+        Sem isso o embedding "unknown" nunca recebe gradiente e usuários/itens
+        cold-start seriam pontuados com um vetor aleatório. Com o dropout de
+        id, o unknown aprende o comportamento do "usuário/item médio".
+        """
+        if self.unknown_dropout <= 0:
+            return users, items, self.item_categories[items]
+        rng = np.random.default_rng(self.random_state)
+        users = users.copy()
+        items = items.copy()
+        users[rng.random(len(users)) < self.unknown_dropout] = self.n_users
+        items[rng.random(len(items)) < self.unknown_dropout] = self.n_items
+        return users, items, self.item_categories[items]
+
+    def _validation_metric(
+        self,
+        train_loss: float,
+        X_val: np.ndarray | None,
+        y_val: np.ndarray | None,
+    ) -> float:
+        """Métrica a maximizar no early stopping: val-AUC ou -loss de treino."""
+        if X_val is None or y_val is None:
+            return -train_loss
+        return float(roc_auc_score(y_val, self.predict_proba(X_val)))
 
     def _run_early_stopping(
         self,
         loader: torch.utils.data.DataLoader,
         optimizer: torch.optim.Optimizer,
-        loss_fn: nn.Module,
+        X_val: np.ndarray | None,
+        y_val: np.ndarray | None,
     ) -> None:
-        """Loop de treino com early stopping por `patience` épocas sem melhora."""
-        best_loss, no_improve = float("inf"), 0
+        """Loop de treino guardando o melhor estado pela métrica de validação."""
+        assert self._net is not None
+        loss_fn = nn.BCEWithLogitsLoss()
+        best_metric, no_improve = -float("inf"), 0
+        best_state = copy.deepcopy(self._net.state_dict())
         for _ in range(self.epochs):
             loss = self._train_epoch(loader, optimizer, loss_fn)
-            if loss < best_loss:
-                best_loss, no_improve = loss, 0
+            metric = self._validation_metric(loss, X_val, y_val)
+            if metric > best_metric + _MIN_IMPROVEMENT:
+                best_metric, no_improve = metric, 0
+                best_state = copy.deepcopy(self._net.state_dict())
             else:
                 no_improve += 1
                 if no_improve >= self.patience:
                     break
+        self._net.load_state_dict(best_state)
+
+    def _combined_loss(
+        self,
+        strong_logit: torch.Tensor,
+        view_logit: torch.Tensor,
+        yb: torch.Tensor,
+        yb_view: torch.Tensor,
+        loss_fn: nn.Module,
+    ) -> torch.Tensor:
+        """Loss combinada (spec 002, D3, revisada por diagnóstico empírico).
+
+        Linhas de ``view`` amostrado (``yb_view == 1 and yb == 0`` — visto
+        mas não convertido) NÃO entram na loss da cabeça ``strong``: só
+        alimentam a cabeça ``view``. A primeira versão desta loss incluía
+        essas linhas como negativos também da cabeça forte, o que ensinava
+        o modelo a tratar "visto mas não convertido" como equivalente a
+        "nunca visto" — e regrediu o cenário principal (warm/forte) da
+        spec `001-recommender-quality` (AC-2), confirmado por ablation.
+        """
+        if not self._multitask:
+            return cast(torch.Tensor, loss_fn(strong_logit, yb))
+        strong_mask = (~((yb_view == 1) & (yb == 0))).float()
+        per_row = F.binary_cross_entropy_with_logits(strong_logit, yb, reduction="none")
+        n_masked = strong_mask.sum().clamp(min=1)
+        strong_loss = (per_row * strong_mask).sum() / n_masked
+        view_loss = cast(torch.Tensor, loss_fn(view_logit, yb_view))
+        return strong_loss + self.view_loss_weight * view_loss
 
     def _train_epoch(
         self,
@@ -119,22 +354,44 @@ class MLPRecommender(RecommenderBase):
         assert self._net is not None
         self._net.train()
         total = 0.0
-        for xb, yb in loader:
+        for users, items, cats, cont, yb, yb_view in loader:
             optimizer.zero_grad()
-            loss = loss_fn(self._net(xb), yb)
+            strong_logit, view_logit = self._net(users, items, cats, cont)
+            loss = self._combined_loss(strong_logit, view_logit, yb, yb_view, loss_fn)
             loss.backward()
             optimizer.step()
             total += loss.item()
-        return total / len(loader)
+        return total / max(len(loader), 1)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Retorna a probabilidade de interação (valor entre 0 e 1)."""
+    def predict_proba(self, X: np.ndarray, head: str = "strong") -> np.ndarray:
+        """Retorna a probabilidade de interação por par (user, item).
+
+        Args:
+            X: Matriz na ordem do contrato de features.
+            head: Qual cabeça pontuar — ``"strong"`` (interação forte,
+                default, usado no cenário principal e no early stopping —
+                FR-005) ou ``"view"`` (interação ampla, spec 002, FR-004).
+        """
         assert self._net is not None, "Chame fit() antes de predict_proba()"
+        head_idx = _HEAD_INDEX[head]
         self._net.eval()
+        X = np.asarray(X, dtype="float32")
+        users, items, cats, cont = self._split_matrix(X)
+        out = np.empty(len(X), dtype="float32")
         with torch.no_grad():
-            X_t = torch.tensor(np.array(X), dtype=torch.float32)
-            return torch.sigmoid(self._net(X_t)).numpy()
+            for start in range(0, len(X), _PREDICT_BATCH):
+                end = start + _PREDICT_BATCH
+                logits = self._net(
+                    torch.from_numpy(users[start:end]),
+                    torch.from_numpy(items[start:end]),
+                    torch.from_numpy(cats[start:end]),
+                    torch.from_numpy(cont[start:end]),
+                )
+                out[start:end] = torch.sigmoid(logits[head_idx]).numpy()
+        return out
 
-    def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+    def predict(
+        self, X: np.ndarray, threshold: float = 0.5, head: str = "strong"
+    ) -> np.ndarray:
         """Retorna predições binárias (0 ou 1) com base no threshold."""
-        return (self.predict_proba(X) >= threshold).astype(int)
+        return (self.predict_proba(X, head=head) >= threshold).astype(int)

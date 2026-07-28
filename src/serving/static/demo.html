@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>RetailRocket Recommender — Demo ao vivo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink: #12181c; --paper: #e7e2d6; --paper-2: #ddd6c6;
+    --text: #1d2126; --text-dim: #52504a;
+    --accent: #c9793a; --accent-soft: #e3b78a;
+    --good: #4f7a5c; --bad: #a84a3c;
+    --line: rgba(29, 33, 38, 0.14); --card: #ffffffb0;
+    --shadow: 0 1px 2px rgba(20, 16, 8, 0.06);
+    --funnel-1: #e3b78a; --funnel-2: #c9793a; --funnel-3: #8a531f;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #e9e4d8; --text-dim: #a29c8d;
+      --accent: #dc9552; --accent-soft: #6b4d2c;
+      --good: #7fae8c; --bad: #d3796a;
+      --line: rgba(233, 228, 216, 0.14); --card: #1b222699;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --funnel-1: #6b4d2c; --funnel-2: #dc9552; --funnel-3: #f3b673;
+      color-scheme: dark;
+    }
+    body { background: var(--ink); }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1, h2, h3 { font-family: "Iowan Old Style", Charter, Georgia, "Noto Serif", serif; font-weight: 600; margin: 0 0 6px; }
+  h1 { font-size: 1.9rem; }
+  h2 { font-size: 1.3rem; margin-top: 40px; }
+  h3 { font-size: 1.05rem; margin-top: 20px; }
+  p { margin: 8px 0; }
+  .lede { color: var(--text-dim); max-width: 68ch; }
+  .eyebrow { font-family: ui-monospace, monospace; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+  code { font-family: ui-monospace, monospace; background: var(--line); padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+
+  .banner { border: 1px solid var(--accent); background: var(--card); border-radius: 6px; padding: 14px 16px; margin: 18px 0; font-size: 0.9rem; }
+  .banner.err { border-color: var(--bad); color: var(--bad); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 16px 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .card h4 { margin: 0 0 6px; font-size: 0.95rem; color: var(--accent); }
+  .card p { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
+  .card .stage-tag { display: inline-block; font-family: ui-monospace, monospace; font-size: 0.68rem; color: var(--text-dim); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; margin-top: 8px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-family: ui-monospace, monospace; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; border: 1px solid currentColor; }
+  .pill.win { color: var(--good); } .pill.loss { color: var(--bad); } .pill.neutral { color: var(--text-dim); }
+  .pill.accent { color: var(--accent); }
+  .item-tag { color: var(--text-dim); font-size: 0.8rem; }
+  .item-tag b { font-family: ui-monospace, monospace; color: var(--text); }
+
+  .form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+  .user-btn {
+    font: inherit; cursor: pointer; text-align: left;
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 10px 14px; color: var(--text); font-size: 0.85rem;
+  }
+  .user-btn:hover { border-color: var(--accent); }
+  .user-btn b { display: block; color: var(--accent); font-family: ui-monospace, monospace; }
+  input[type=number], select {
+    font: inherit; padding: 8px 10px; border-radius: 5px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--text);
+  }
+  button.primary {
+    font: inherit; cursor: pointer; background: var(--accent); color: var(--ink);
+    border: none; border-radius: 5px; padding: 9px 18px; font-weight: 600;
+  }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+
+  .step { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin: 18px 0; }
+  .step .step-no { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--accent); }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin: 12px 0; }
+  .stat { background: var(--paper); padding: 12px 14px; }
+  @media (prefers-color-scheme: dark) { .stat { background: var(--ink); } }
+  .stat .n { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 600; color: var(--accent); display: block; }
+  .stat .l { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+
+  .tbl-wrap { margin: 12px 0; }
+  table { border-collapse: collapse; table-layout: auto; width: 100%; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line); overflow-wrap: break-word; }
+  td.num, th.num { white-space: nowrap; font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  th { font-family: ui-monospace, monospace; font-size: 0.66rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-dim); font-weight: 500; }
+
+  .funnel { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+  .funnel-row { display: flex; align-items: center; gap: 10px; }
+  .funnel-track { width: 200px; flex-shrink: 0; }
+  @media (max-width: 640px) { .funnel-track { width: 110px; } }
+  .funnel-bar { height: 20px; min-width: 4px; border-radius: 0 4px 4px 0; background: var(--funnel-2); }
+  .funnel-label { font-size: 0.82rem; white-space: nowrap; }
+  .funnel-label b { font-family: ui-monospace, monospace; }
+
+  details { margin: 16px 0; }
+  summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 0.78rem; }
+
+  footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--text-dim); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Demo interativa</div>
+  <h1>Veja o recomendador funcionando de verdade</h1>
+  <p class="lede">Isto chama o modelo <b>Production</b> de verdade (via MLflow Model
+  Registry) através do mesmo <code>RecommendationService</code> que serve
+  <code>/recommend</code> — não é um mockup com números inventados. Só a etapa final
+  (montagem de features → score → ranking) acontece ao vivo aqui; o resto do pipeline
+  rodou uma vez, offline, antes de qualquer pedido de recomendação chegar.</p>
+
+  <div id="health-banner"></div>
+
+  <h2>O pipeline offline (rodou uma vez, antes de tudo)</h2>
+  <p class="lede">Estas 6 etapas são o <code>dvc.yaml</code> do projeto — cada uma só
+  reexecuta quando seus inputs mudam (<code>dvc repro</code>). Nenhuma delas roda
+  quando você pede uma recomendação abaixo.</p>
+  <div class="grid">
+    <div class="card">
+      <h4>1 · preprocess</h4>
+      <p>2,76M eventos brutos → 948.537 após filtrar usuários com &lt;5 interações
+      (<code>RetailRocketPreprocessor</code>). Split cronológico 70/10/20 — nunca
+      embaralhado.</p>
+      <span class="stage-tag">offline</span>
+    </div>
+    <div class="card">
+      <h4>2 · content</h4>
+      <p>Extrai categoria de cada item de <code>item_properties</code> — alimenta o
+      embedding de categoria (cold-start de conteúdo).</p>
+      <span class="stage-tag">offline</span>
+    </div>
+    <div class="card">
+      <h4>3 · feature_eng</h4>
+      <p>Features causais <i>as-of</i> (só o que era conhecido até o instante do
+      evento): <code>frequency</code>, <code>engagement_score</code>,
+      <code>recency_days</code>, <code>view_count</code>,
+      <code>user_item_view_count</code>, <code>user_item_recency_days</code>.</p>
+      <span class="stage-tag">offline</span>
+    </div>
+    <div class="card">
+      <h4>4 · train</h4>
+      <p>NCF: embeddings (usuário/item 64d, categoria 8d) + contínuas → MLP
+      [128, 64] → duas cabeças (<code>strong</code>/<code>view</code>, multi-task).
+      Negative sampling 8:1, early stopping (patience=5) por val-AUC.</p>
+      <span class="stage-tag">offline</span>
+    </div>
+    <div class="card">
+      <h4>5 · evaluate</h4>
+      <p>NDCG@10/20, Recall@10/20, HitRate@20 por usuário, comparado contra o
+      baseline de popularidade nos mesmos candidatos.</p>
+      <span class="stage-tag">offline</span>
+    </div>
+    <div class="card">
+      <h4>6 · promote</h4>
+      <p>Registra no MLflow Model Registry e promove Staging → Production pela
+      melhor <code>val_ndcg_at_20</code> entre todos os runs.</p>
+      <span class="stage-tag">offline</span>
+    </div>
+  </div>
+
+  <h2>Peça uma recomendação de verdade</h2>
+  <p class="lede">Escolha um dos 3 usuários reais abaixo (tirados do dataset agora
+  mesmo) ou digite qualquer <code>user_id</code>. O terceiro exemplo é um id que
+  garantidamente não existe — mostra o fallback de popularidade em ação.</p>
+  <div class="grid" id="sample-users">
+    <div class="card"><p>Carregando exemplos…</p></div>
+  </div>
+
+  <div class="form-row">
+    <label for="user_id">user_id</label>
+    <input type="number" id="user_id" min="0" placeholder="ex.: 42" />
+    <label for="top_k">top_k</label>
+    <select id="top_k">
+      <option value="5">5</option>
+      <option value="10" selected>10</option>
+      <option value="20">20</option>
+    </select>
+    <button class="primary" id="go">Recomendar</button>
+  </div>
+
+  <div id="result"></div>
+
+  <footer>
+    Deck completo com o diagnóstico, os experimentos e as métricas em
+    <code>docs/presentation.html</code> (no repositório). Endpoints usados aqui:
+    <code>GET /explain</code>, <code>GET /demo/sample-users</code> e
+    <code>GET /demo/user-timeline</code> — não fazem parte da API de produto,
+    só desta demo.
+  </footer>
+</main>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return "—";
+  return Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch("/health");
+    const body = await r.json();
+    if (body.status !== "ok") {
+      $("#health-banner").innerHTML = `<div class="banner err">
+        A API está em modo <b>degradado</b> (nenhum modelo Production carregado).
+        Rode o pipeline (<code>make setup</code> ou <code>dvc repro</code>) e
+        <code>make promote</code>, depois reinicie <code>make api</code>.</div>`;
+    }
+  } catch (e) {
+    $("#health-banner").innerHTML = `<div class="banner err">
+      Não consegui falar com <code>/health</code>. A API está no ar?</div>`;
+  }
+}
+
+function userButton(key, label, data) {
+  const sub = data.known
+    ? `frequency=${fmtNum(data.frequency)} · engagement=${fmtNum(data.engagement_score)}`
+    : "desconhecido para o modelo (cold-start)";
+  return `<button class="user-btn" data-user-id="${data.user_id}">
+    <b>${label} — id ${data.user_id}</b>${sub}
+  </button>`;
+}
+
+async function loadSampleUsers() {
+  try {
+    const r = await fetch("/demo/sample-users");
+    if (!r.ok) throw new Error("sample-users indisponível");
+    const data = await r.json();
+    $("#sample-users").innerHTML = [
+      userButton("active", "Usuário ativo", data.active),
+      userButton("sparse", "Usuário esparso", data.sparse),
+      userButton("cold", "Usuário desconhecido", data.cold),
+    ].join("");
+    document.querySelectorAll(".user-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $("#user_id").value = btn.dataset.userId;
+        runExplain();
+      });
+    });
+  } catch (e) {
+    $("#sample-users").innerHTML = `<div class="card"><p>Não consegui carregar
+      exemplos — a API está no ar e com um modelo carregado?</p></div>`;
+  }
+}
+
+function catLabel(catIdx) {
+  return catIdx === null || catIdx === undefined ? "—" : catIdx;
+}
+
+const EVENT_PILL = {
+  view: `<span class="pill neutral">view</span>`,
+  addtocart: `<span class="pill accent">addtocart</span>`,
+  transaction: `<span class="pill win">transaction</span>`,
+};
+
+function fmtTimestamp(iso) {
+  return iso.replace("T", " ").slice(0, 19);
+}
+
+function timelineTable(timeline) {
+  if (!timeline.known) {
+    return `<p>Sem histórico — é exatamente por isso que a estratégia abaixo
+      cai no fallback de popularidade.</p>`;
+  }
+  if (!timeline.events.length) {
+    return `<p>Usuário conhecido, mas sem eventos na janela carregada.</p>`;
+  }
+  const rows = timeline.events.map((e) => `<tr>
+    <td class="num">${fmtTimestamp(e.timestamp)}</td>
+    <td>${EVENT_PILL[e.event] || e.event}</td>
+    <td class="num">${e.item_idx}</td>
+    <td class="num">${catLabel(e.cat_idx)}</td>
+    <td class="num">${fmtNum(e.view_count)}</td>
+    <td class="num">${e.popularity_rank ? "#" + fmtNum(e.popularity_rank) : "—"}</td>
+  </tr>`).join("");
+  return `<div class="tbl-wrap"><table><thead><tr>
+    <th>quando</th><th>evento</th><th class="num">item</th>
+    <th class="num">categoria</th><th class="num">views do item</th><th class="num">popularidade</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function featureTable(scored) {
+  if (!scored.length || !scored[0].features) return "";
+  const cols = Object.keys(scored[0].features);
+  const header = `<th>item</th><th class="num">categoria</th><th class="num">rank popularidade</th>`
+    + cols.map((c) => `<th class="num">${c}</th>`).join("") + `<th class="num">score</th>`;
+  const rows = scored.map((row) => {
+    const cells = cols.map((c) => `<td class="num">${fmtNum(row.features[c])}</td>`).join("");
+    return `<tr><td class="num">${row.item_idx}</td>
+      <td class="num">${catLabel(row.cat_idx)}</td>
+      <td class="num">${row.popularity_rank ? "#" + fmtNum(row.popularity_rank) : "—"}</td>
+      ${cells}<td class="num">${row.score}</td></tr>`;
+  }).join("");
+  return `<div class="tbl-wrap"><table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function rankingBars(scored) {
+  const maxScore = Math.max(...scored.map((r) => r.score), 1e-9);
+  return `<div class="funnel">` + scored.map((row) => {
+    const pct = Math.max((row.score / maxScore) * 100, 2);
+    return `<div class="funnel-row">
+      <div class="funnel-track"><div class="funnel-bar" style="width:${pct}%"></div></div>
+      <div class="funnel-label">item <b>${row.item_idx}</b>
+        <span class="item-tag">(categoria ${catLabel(row.cat_idx)})</span> — score ${row.score}</div>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+const FALLBACK_TEXT = {
+  unknown_user: "Esse user_id nunca apareceu no histórico de treino/serving — não há embedding aprendido pra ele, então o modelo não tem o que pontuar.",
+  no_candidates_left: "O usuário já viu todos os itens do pool de candidatos considerado — nada sobra pra pontuar.",
+};
+
+function userStats(u) {
+  return `<div class="stat-row">
+    <div class="stat"><span class="n">${fmtNum(u.frequency)}</span><span class="l">frequency (eventos)</span></div>
+    <div class="stat"><span class="n">${fmtNum(u.engagement_score)}</span><span class="l">engagement_score</span></div>
+    <div class="stat"><span class="n">${fmtNum(u.recency_days)}</span><span class="l">dias desde o último evento</span></div>
+    <div class="stat"><span class="n">${fmtNum(u.seen_count)}</span><span class="l">itens já vistos</span></div>
+  </div>`;
+}
+
+function renderExplain(data, timeline) {
+  const u = data.user;
+  const c = data.candidates;
+  const strategyPill = data.strategy === "model"
+    ? `<span class="pill win">modelo (NCF)</span>`
+    : `<span class="pill loss">fallback: popularidade</span>`;
+
+  let html = "";
+
+  html += `<div class="step"><div class="step-no">PASSO 1</div>
+    <h3>Quem é esse usuário</h3>
+    <p>user_id <b>${u.user_id}</b> — ${u.known
+      ? "conhecido no serving (tem histórico real)."
+      : "desconhecido: nunca apareceu no histórico, não tem embedding aprendido."}</p>
+    ${u.known ? userStats(u) : ""}
+    <h4 style="margin:16px 0 4px; font-size:0.85rem; color:var(--text-dim);">
+      Linha do tempo real (últimos eventos)</h4>
+    ${timeline ? timelineTable(timeline) : "<p>Carregando…</p>"}
+  </div>`;
+
+  html += `<div class="step"><div class="step-no">PASSO 2</div>
+    <h3>Universo de candidatos</h3>
+    <p>Pool considerado: <b>${fmtNum(c.pool_size)}</b> itens mais populares.
+    Excluídos por já vistos: <b>${fmtNum(c.excluded_seen)}</b>.
+    Restam para pontuar: <b>${fmtNum(c.remaining)}</b>.</p>
+  </div>`;
+
+  if (data.strategy === "model") {
+    html += `<div class="step"><div class="step-no">PASSO 3</div>
+      <h3>Matriz de features (contrato v3)</h3>
+      <p>Uma linha por candidato pontuado, na mesma ordem de colunas que o
+      modelo recebeu — <code>src/data/feature_contract.py</code>.</p>
+      ${featureTable(data.scored)}
+    </div>`;
+
+    html += `<div class="step"><div class="step-no">PASSO 4</div>
+      <h3>O modelo pontua</h3>
+      <p>Embeddings de usuário/item (64d) e categoria (8d) são concatenados às
+      features contínuas escaladas e passam por um MLP [128, 64]; a cabeça
+      <code>strong</code> (interação forte: addtocart/transaction) devolve a
+      probabilidade — é o número acima na coluna <code>score</code>.</p>
+    </div>`;
+  }
+
+  html += `<div class="step"><div class="step-no">PASSO 5</div>
+    <h3>Ranking final</h3>
+    <p>Estratégia usada: ${strategyPill}</p>
+    ${data.scored.length ? rankingBars(data.scored) : "<p>Nenhum item retornado.</p>"}
+  </div>`;
+
+  if (data.strategy === "popularity") {
+    html += `<div class="step"><div class="step-no">PASSO 6</div>
+      <h3>Por que caiu no fallback</h3>
+      <p>${FALLBACK_TEXT[data.fallback_reason] || data.fallback_reason}</p>
+    </div>`;
+  }
+
+  html += `<details><summary>ver JSON bruto de /explain</summary>
+    <pre>${JSON.stringify(data, null, 2)}</pre></details>`;
+
+  $("#result").innerHTML = html;
+}
+
+async function fetchJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || `HTTP ${r.status} em ${url}`);
+  }
+  return r.json();
+}
+
+async function runExplain() {
+  const userId = $("#user_id").value;
+  const topK = $("#top_k").value;
+  if (userId === "") return;
+  const btn = $("#go");
+  btn.disabled = true;
+  $("#result").innerHTML = `<p class="lede">Consultando o modelo…</p>`;
+  try {
+    const [explainData, timelineData] = await Promise.all([
+      fetchJson(`/explain?user_id=${encodeURIComponent(userId)}&top_k=${encodeURIComponent(topK)}`),
+      fetchJson(`/demo/user-timeline?user_id=${encodeURIComponent(userId)}&limit=15`),
+    ]);
+    renderExplain(explainData, timelineData);
+  } catch (e) {
+    $("#result").innerHTML = `<div class="banner err">Erro ao consultar o modelo: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$("#go").addEventListener("click", runExplain);
+checkHealth();
+loadSampleUsers();
+</script>
+</body>
+</html>

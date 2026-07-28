@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -50,7 +51,7 @@ def plot_event_timeline(
     ax.set_title(f"Volume de Eventos por {freq}", fontsize=12)
     ax.set_xlabel("Data")
     ax.set_ylabel("Eventos")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x/1e3:.0f}k"))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x / 1e3:.0f}k"))
     ax.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
@@ -65,7 +66,9 @@ def plot_power_law(
     """Histograma (clipped) + log-log para checagem de power-law."""
     fig, axes = plt.subplots(1, 2, figsize=figsize)
 
-    axes[0].hist(series.clip(upper=clip_upper), bins=50, edgecolor="white", color="steelblue")
+    axes[0].hist(
+        series.clip(upper=clip_upper), bins=50, edgecolor="white", color="steelblue"
+    )
     axes[0].set_title(f"{title} (clipped em {clip_upper})")
     axes[0].set_xlabel("Interações")
     axes[0].set_ylabel("Frequência")
@@ -82,9 +85,9 @@ def plot_power_law(
     plt.show()
 
 
-def _annotate_bars(ax: plt.Axes, bars: list, values: list) -> None:
+def _annotate_bars(ax: plt.Axes, bars: Iterable, values: Iterable) -> None:
     """Adiciona rótulo de valor ao lado de cada barra horizontal."""
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=True):
         ax.text(
             bar.get_width() * 1.01,
             bar.get_y() + bar.get_height() / 2,
@@ -107,10 +110,12 @@ def plot_conversion_funnel(
     order_rev = order[::-1]
 
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.barh(order_rev, counts[order_rev].values, color=["green", "orange", "steelblue"])
+    bars = ax.barh(
+        order_rev, counts[order_rev].values, color=["green", "orange", "steelblue"]
+    )
     _annotate_bars(ax, bars, counts[order_rev].values)
     ax.set_title("Funil de Conversão", fontsize=12)
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x/1e6:.1f}M"))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x / 1e6:.1f}M"))
     ax.grid(True, axis="x", linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()

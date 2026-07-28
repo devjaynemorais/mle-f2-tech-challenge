@@ -10,14 +10,11 @@ class RecommenderBase(ABC):
     @abstractmethod
     def fit(self, X: Any, y: Any) -> "RecommenderBase":
         """Treina o modelo com os dados fornecidos."""
-        ...
 
     @abstractmethod
     def predict(self, X: Any) -> Any:
         """Retorna predições binárias (0 ou 1)."""
-        ...
 
     @abstractmethod
     def predict_proba(self, X: Any) -> Any:
         """Retorna a probabilidade de interação (valor entre 0 e 1)."""
-        ...

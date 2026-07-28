@@ -3,18 +3,32 @@ stages:
     cmd: python -m src.data.preprocess
     deps:
       - src/data/preprocess.py
-      - data/raw/
+      - src/data/preprocessor.py
+      - data/raw/events.csv
     params:
       - preprocess
     outs:
       - data/interim/
 
+  content:
+    cmd: python -m src.data.content_etl
+    deps:
+      - src/data/content_etl.py
+      - data/raw/item_properties_part1.csv
+      - data/raw/item_properties_part2.csv
+    outs:
+      - data/content/
+
   feature_eng:
     cmd: python -m src.features.build_features
     deps:
       - src/features/build_features.py
+      - src/data/feature_engineering.py
+      - src/data/feature_contract.py
       - data/interim/
+      - data/content/
     params:
+      - preprocess
       - feature_eng
     outs:
       - data/processed/
@@ -24,9 +38,16 @@ stages:
     deps:
       - src/training/trainer.py
       - src/models/
+      - src/data/labeling.py
+      - src/data/dataset.py
+      - src/data/feature_contract.py
+      - src/evaluation/ranking.py
+      - src/evaluation/scorers.py
       - data/processed/
     params:
       - train
+      - labeling
+      - eval
     outs:
       - models/artifacts/
     metrics:
@@ -37,10 +58,15 @@ stages:
     cmd: python -m src.evaluation.evaluate
     deps:
       - src/evaluation/evaluate.py
+      - src/evaluation/ranking.py
+      - src/evaluation/scorers.py
+      - src/data/labeling.py
+      - src/data/feature_contract.py
       - models/artifacts/
       - data/processed/
     params:
-      - train
+      - labeling
+      - eval
     metrics:
       - metrics/eval_metrics.json:
           cache: false

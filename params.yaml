@@ -1,27 +1,52 @@
 preprocess:
+  min_interactions: 5       # usuários com menos eventos que isso são descartados
+                            # (ver docs/eda.md — decisões para o pré-processamento)
   test_size: 0.2
   val_size: 0.1
   random_state: 42
-  # TODO: adicionar parâmetros específicos do dataset escolhido
 
 feature_eng:
   random_state: 42
-  # TODO: definir parâmetros de feature engineering após escolher o dataset
+
+labeling:
+  num_negatives: 8          # razão de negativos por positivo (D1; revisto no tuning)
+  popularity_alpha: 0.0     # 0 = uniforme; α=0.75 punia popularidade e perdia
+                            # p/ o baseline (ver research.md D1 — revisão empírica)
+  seed: 42
+  view_sample_ratio: 8      # views reais amostradas por positivo forte, como
+                            # sinal auxiliar de multi-task (spec 002, D1).
+                            # 0 desliga o multi-task (comportamento anterior).
 
 train:
-  model_type: mlp        # opções: mlp | logistic | dummy
-  epochs: 50
-  batch_size: 256
+  model_type: ncf           # opções: ncf | logistic | dummy
+  epochs: 40
+  batch_size: 1024
   learning_rate: 0.001
+  weight_decay: 0.0001    # L2 forte: embeddings sem sinal encolhem p/ ~0
+                          # (melhor config do tuning — ver model_card.md)
+  embedding_dim: 64
+  cat_embedding_dim: 8
+  hidden_dims: [128, 64]
+  dropout: 0.2
+  unknown_dropout: 0.1    # id-dropout: treina o embedding unknown (cold-start)
+  view_loss_weight: 0.3   # λ da loss auxiliar de view (spec 002, D3) — baixo
+                          # de propósito p/ não dominar o cenário principal
+                          # (ver research.md D3 — lição do popularity_alpha)
   early_stopping_patience: 5
   random_state: 42
 
+eval:
+  k_values: [10, 20]           # K das métricas Top-K (FR-005)
+  num_candidate_negatives: 100 # negativos por usuário na avaliação (D3)
+  max_broad_positives: 20      # teto de positivos/usuário na relevância ampla
+  seed: 42
+
 mlflow:
   experiment_name: recommendation_system
-  run_name: baseline
+  run_name: train    # prefixo; o run vira "<run_name>-<model_type>", ex.: train-ncf
 
 registry:
   model_name: retailrocket_recommender
-  metric: val_auc      # métrica usada para escolher o melhor run
-  ascending: false     # false = maior é melhor (AUC)
-  stage: Production     # estágio final da promoção
+  metric: val_ndcg_at_20  # métrica de VALIDAÇÃO usada na promoção (FR-010)
+  ascending: false        # false = maior é melhor
+  stage: Production       # estágio final da promoção

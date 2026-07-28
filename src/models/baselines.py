@@ -31,11 +31,11 @@ class DummyRecommender(RecommenderBase):
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Retorna probabilidade constante baseada na frequência da classe positiva."""
-        return self._model.predict_proba(X)[:, 1]
+        return np.asarray(self._model.predict_proba(X)[:, 1])
 
     def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
         """Retorna predições binárias."""
-        return self._model.predict(X)
+        return np.asarray(self._model.predict(X))
 
 
 @ModelFactory.register("logistic")
@@ -65,7 +65,7 @@ class LogisticRecommender(RecommenderBase):
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Retorna a probabilidade da classe positiva."""
-        return self._model.predict_proba(X)[:, 1]
+        return np.asarray(self._model.predict_proba(X)[:, 1])
 
     def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
         """Retorna predições binárias com base no threshold."""

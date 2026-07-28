@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from src.config.settings import settings
@@ -24,6 +25,8 @@ from src.serving.store import FeatureStore
 logger = logging.getLogger(__name__)
 
 state: dict[str, RecommendationService | None] = {"service": None}
+
+_DEMO_HTML_PATH = Path(__file__).parent / "static" / "demo.html"
 
 
 class Recommendation(BaseModel):
@@ -45,6 +48,7 @@ class RecommendResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Carrega modelo e feature store uma única vez no startup."""
+    state["service"] = None
     try:
         model = load_production_model()
         store = FeatureStore.from_processed(Path(settings.data_processed_path))
@@ -94,3 +98,41 @@ def health() -> dict:
 def recommend(user_id: int, top_k: int = Query(10, ge=1, le=100)) -> dict:
     """Retorna as top-K recomendações para o usuário."""
     return _get_service().recommend(user_id, top_k)
+
+
+@app.get("/explain")
+def explain(user_id: int, top_k: int = Query(10, ge=1, le=100)) -> dict:
+    """Retorna o passo a passo de como a recomendação foi montada.
+
+    Usado pela demo interativa (``/demo``) — expõe as features cruas por
+    candidato pontuado, o tamanho do pool e por que caiu no fallback de
+    popularidade quando é o caso. Não é consumido pelo cliente de produto.
+    """
+    return _get_service().explain(user_id, top_k)
+
+
+@app.get("/demo/sample-users")
+def sample_users() -> dict:
+    """Retorna usuários reais de exemplo (ativo, esparso, desconhecido)."""
+    return _get_service().store.sample_users()
+
+
+@app.get("/demo/user-timeline")
+def user_timeline(user_id: int, limit: int = Query(15, ge=1, le=100)) -> dict:
+    """Retorna o histórico real (últimos ``limit`` eventos) de um usuário.
+
+    Cada evento vem com o perfil do item (categoria, popularidade) — dá
+    visibilidade ao "quem é esse usuário" antes de pedir a recomendação.
+    """
+    store = _get_service().store
+    return {
+        "user_id": user_id,
+        "known": store.has_user(user_id),
+        "events": store.timeline(user_id, limit),
+    }
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo() -> str:
+    """Serve a página HTML da demo interativa (self-contained, sem build)."""
+    return _DEMO_HTML_PATH.read_text(encoding="utf-8")

@@ -45,8 +45,6 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "ANN", "D", "C90"]
 ignore = [
-    "ANN101",  # self sem type hint
-    "ANN102",  # cls sem type hint
     "ANN401",  # Any em interfaces abstratas é intencional
     "N803",    # X, y são convenção ML para matrizes
     "N806",    # X_train, X_test são convenção ML
@@ -79,3 +77,11 @@ no_strict_optional = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=src --cov-report=term-missing"
+
+[tool.coverage.report]
+# Boilerplate de entrypoint CLI (`python -m src.x.y`) — nunca executa sob
+# pytest (module __name__ é o path do módulo, não "__main__"), então não é
+# lógica testável. Convenção padrão: excluir do relatório, não da suíte.
+exclude_lines = [
+    "if __name__ == .__main__.:",
+]

@@ -12,6 +12,7 @@ import logging
 import pickle
 import socket
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse
 
 from src.config.settings import settings
@@ -69,7 +70,7 @@ def _load_from_registry() -> RecommenderBase:
         tracking_uri=settings.mlflow_tracking_uri,
     )
     with open(local, "rb") as f:
-        return pickle.load(f)
+        return cast(RecommenderBase, pickle.load(f))
 
 
 def _load_from_local(record_path: Path, artifacts_dir: Path) -> RecommenderBase:
@@ -77,4 +78,4 @@ def _load_from_local(record_path: Path, artifacts_dir: Path) -> RecommenderBase:
     record = json.loads(record_path.read_text())
     model_file = artifacts_dir / record["run_id"] / "model.pkl"
     with open(model_file, "rb") as f:
-        return pickle.load(f)
+        return cast(RecommenderBase, pickle.load(f))

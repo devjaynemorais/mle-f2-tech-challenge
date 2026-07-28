@@ -13,7 +13,14 @@ poetry run pytest tests/test_feature_engineering.py -v
 poetry run pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-Todos os testes são **sem dependência de disco** — usam DataFrames sintéticos em memória. Passam em qualquer clone limpo do repositório.
+Todos os testes são **sem dependência de disco real** — usam DataFrames sintéticos em memória (alguns usam um backend MLflow SQLite temporário em `tmp_path`, nunca um servidor no ar). Passam em qualquer clone limpo do repositório. Cobertura de linha: **100%** em todo o `src/`.
+
+> Nota: as seções detalhadas abaixo (por teste individual) cobrem os arquivos
+> originais do projeto e estão desatualizadas em relação aos arquivos novos
+> adicionados depois (`test_labeling.py`, `test_ranking.py`, `test_ncf.py`,
+> `test_contract.py`, os testes de cada etapa DVC, etc.) — a tabela agregada
+> abaixo já reflete os 22 arquivos/200 testes atuais; o detalhamento por
+> teste individual desses arquivos novos não foi escrito aqui ainda.
 
 ---
 
@@ -22,11 +29,28 @@ Todos os testes são **sem dependência de disco** — usam DataFrames sintétic
 | Arquivo | Escopo | Testes |
 |---------|--------|--------|
 | `tests/test_preprocess.py` | Estratégias de pré-processamento | 11 |
-| `tests/test_feature_engineering.py` | Engenharia de features e split | 23 |
-| `tests/test_smoke.py` | Factory de modelos e MLP | 4 |
-| `tests/test_registry.py` | Registro e promoção no MLflow Registry | 3 |
-| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService e endpoints | 16 |
-| **Total** | | **57** |
+| `tests/test_preprocess_stage.py` | Etapa DVC `preprocess` (orquestração) | 2 |
+| `tests/test_content_etl.py` | ETL de conteúdo (categoria por item) | 6 |
+| `tests/test_feature_engineering.py` | Engenharia de features e split | 16 |
+| `tests/test_build_features_stage.py` | Etapa DVC `feature_eng` (orquestração) | 9 |
+| `tests/test_labeling.py` | Rótulo, negative sampling, determinismo | 18 |
+| `tests/test_dataset.py` | `RetailRocketDataset` | 1 |
+| `tests/test_baselines.py` | `DummyRecommender`, `LogisticRecommender` | 3 |
+| `tests/test_ncf.py` | NCF: shapes, roteamento unknown, aprendizado | 14 |
+| `tests/test_smoke.py` | Factory de modelos e NCF | 4 |
+| `tests/test_trainer.py` | Etapa DVC `train` (orquestração + MLflow) | 15 |
+| `tests/test_ranking.py` | Métricas Top-K e protocolo por usuário | 13 |
+| `tests/test_scorers.py` | `HistoryFeatureLookup` e scorers | 6 |
+| `tests/test_evaluate.py` | Etapa DVC `evaluate` (orquestração + MLflow) | 12 |
+| `tests/test_contract.py` | Contrato de features treino ↔ serving | 3 |
+| `tests/test_registry.py` | MLflow tracking + etapa DVC `promote` | 9 |
+| `tests/test_serving.py` | FeatureStore, model loader, RecommendationService, API, demo | 43 |
+| `tests/test_eda.py` | Helpers de EDA | 5 |
+| `tests/test_plots.py` | Visualização (matplotlib/seaborn) | 6 |
+| `tests/test_seed.py` | Reprodutibilidade (seeds) | 2 |
+| `tests/test_logging_config.py` | Configuração central de logging | 1 |
+| `tests/test_make_dataset.py` | Helper genérico de download (scaffold) | 1 |
+| **Total** | | **200** |
 
 ---
 
@@ -219,4 +243,4 @@ API. `TestClient(app)` é usado **sem** `with`, então o `lifespan` não dispara
 1. `tests/` escritos → pytest coletava erros de importação (RED)
 2. `src/data/feature_engineering.py` implementado → todos passam (GREEN)
 
-**Cobertura.** `src/data/feature_engineering.py` e `src/data/preprocessor.py` atingem 100% de cobertura pelos testes atuais.
+**Cobertura.** 100% de cobertura de linha em todo o `src/` (`pytest --cov=src --cov-report=term-missing`), incluindo as etapas de orquestração do pipeline DVC (`preprocess`, `feature_eng`, `train`, `evaluate`, `promote`) e os utilitários (`eda.py`, `plots.py`, `seed.py`, `logging_config.py`, `mlflow_tracking.py`).

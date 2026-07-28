@@ -221,11 +221,14 @@ __marimo__/
 data/raw/*
 data/interim/*
 data/processed/*
+data/content/*
 models/artifacts/
+models/promoted_model.json
 mlruns/
 mlartifacts/
 mlflow.db
 metrics/*.json
+metrics/plots/
 !metrics/.gitkeep
 
 # DVC
@@ -241,3 +244,4 @@ docs/tc2_text.txt
 data/skills/
 skills-lock.json
 docs/todo.md
+docs/avaliação do TC 1. txt
