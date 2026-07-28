@@ -1194,8 +1194,11 @@ flowchart LR
       <code>&lt;run_name&gt;-&lt;model_type&gt;</code>, e reexecutado pra confirmar: os seis
       runs (<code>train-dummy</code>, <code>evaluate-dummy</code>, <code>train-logistic</code>,
       <code>evaluate-logistic</code>, <code>train-ncf</code>, <code>evaluate-ncf</code>) já
-      aparecem distinguíveis na UI, com os mesmos números acima reproduzidos de ponta a ponta
-      — segunda confirmação, com seed fixa, de que o pipeline é determinístico.</p>
+      aparecem distinguíveis na UI, com os mesmos números acima reproduzidos de ponta a ponta.
+      Uma terceira execução completa de <code>make compare-baselines</code> devolveu de novo
+      exatamente a mesma tabela, e a promoção final voltou a eleger o <code>ncf</code> com o
+      mesmo <code>val_ndcg_at_20</code> (0,193) — <b>três execuções independentes, resultados
+      idênticos</b>: com seed fixa, o pipeline é determinístico de ponta a ponta.</p>
 
       <h4>Serving</h4>
       <p>FastAPI (<code>GET /recommend?user_id=&amp;top_k=</code>) carrega o modelo Production
