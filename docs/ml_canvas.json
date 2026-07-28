@@ -1,0 +1,104 @@
+{
+  "business_drivers": {
+    "problema": "Loja de e-commerce com catálogo grande (~104k itens) e baixa descoberta de produtos: a maior parte da navegação não converte (882k views para apenas 18k transações). Falta um mecanismo que recomende os produtos certos a cada usuário para aumentar engajamento e conversão.",
+    "stakeholders": [
+      "Produto / E-commerce (experiência de descoberta e vitrine)",
+      "Marketing/CRM (campanhas e recomendações personalizadas)",
+      "Merchandising (curadoria e sortimento do catálogo)",
+      "Equipe de Dados (desenvolvimento, avaliação e manutenção do modelo)"
+    ],
+    "metricas": {
+      "kpi_principal": "Taxa de Conversão / CTR das recomendações",
+      "impacto_financeiro": "GMV e receita por sessão",
+      "eficiencia": "NDCG@10 e Recall@10 vs. baseline de popularidade",
+      "roi": "Uplift de engajamento sobre a vitrine sem personalização"
+    }
+  },
+  "acceptable_accuracy_tradeoffs": {
+    "falsos_negativos": "Alto impacto: item de fato relevante fica fora do Top-K — engajamento e receita potencial perdidos (Recall@K baixo).",
+    "falsos_positivos": "Impacto médio: item irrelevante ocupa um slot do Top-K — desperdício de espaço na vitrine e pior experiência do usuário.",
+    "decisao": "Priorizar qualidade de ranking Top-K (NDCG@K/Recall@K) para usuários com histórico; usuários sem histórico (cold-start) são atendidos por fallback de popularidade — nunca lista vazia.",
+    "metricas_tecnicas": [
+      "NDCG@K (ranking — métrica de referência real)",
+      "Recall@K e HitRate@K",
+      "Precision@K",
+      "ROC-AUC / Average Precision (proxy de classificação)"
+    ]
+  },
+  "data": {
+    "tipo": "Eventos de interação implícita (view / addtocart / transaction) + propriedades de item (categoria via item_properties) + árvore de categorias. Features de comportamento causais (as-of, sem vazamento temporal).",
+    "tamanho": "948.537 eventos após filtro min_interactions ≥ 5 (2,76M brutos) · 81.620 usuários · 103.873 itens.",
+    "velocidade": "Inferência near real-time via API REST; candidatos vindos dos ~5.000 itens mais populares, ranqueados pelo modelo."
+  },
+  "infrastructure": {
+    "desenvolvimento": "Poetry (deps + lock) · ruff + pre-commit + mypy · 200 testes (cobertura ~100% em src/) · pipeline reprodutível com DVC (6 stages).",
+    "rastreamento": "MLflow para tracking de experimentos, params, métricas e artefatos + Model Registry (Staging → Production, promoção por val_ndcg_at_20).",
+    "producao": "Imagem Docker multi-stage + docker-compose (mlflow, train, evaluate, promote, api); modelo servido via FastAPI carregando direto do Registry (fallback local)."
+  },
+  "goal": {
+    "objetivo_ciencia_dados": "Ranquear Top-K produtos por usuário, superando o baseline de popularidade em NDCG@K e Recall@K (K ∈ {10, 20}) para usuários com histórico de treino.",
+    "objetivo_tecnico": "Pipeline end-to-end reprodutível (Poetry + DVC 6 stages + MLflow Registry + Docker + FastAPI), com features causais (as-of) e avaliação de ranking por usuário.",
+    "objetivo_negocio": [
+      "Aumentar conversão e engajamento via descoberta personalizada",
+      "Cobrir 100% dos usuários (incl. cold-start) sem recomendação vazia"
+    ],
+    "objetivo_cd_avancado": "Modelo NCF multi-task (cabeças strong + view compartilhando embeddings) com tratamento de cold-start por id-dropout e embedding de categoria; loss de view mascarada da cabeça principal para evitar regressão."
+  },
+  "model_type": {
+    "principal": "NCF — Neural Collaborative Filtering (PyTorch), multi-task: embeddings de usuário/item/categoria + features contínuas → trunk MLP → cabeças strong + view",
+    "baselines": [
+      "Popularity (fallback de serving p/ cold-start)",
+      "Regressão Logística",
+      "DummyClassifier"
+    ]
+  },
+  "intervention": {
+    "acao": "Recomendações Top-K servidas à vitrine/CRM para personalizar a experiência de compra e navegação.",
+    "estrategias": [
+      "Carrossel personalizado de produtos (GET /recommend)",
+      "Fallback de popularidade para usuário sem histórico",
+      "Demo interativa com explicabilidade do modelo"
+    ],
+    "criterio_ativacao": "Requisição por usuário: GET /recommend?user_id=X&top_k=10"
+  },
+  "upstream": {
+    "fonte": "RetailRocket E-commerce Dataset (Kaggle) — events.csv, item_properties, category_tree",
+    "processamento": [
+      "Preprocess: filtro min_interactions, encoding de user_id/item_id",
+      "Content ETL: categoria mais recente por item (embedding de categoria)",
+      "Feature engineering causal (as-of): recência, frequência, tipo de evento",
+      "Labeling: positivos (addtocart/transaction) + negativos amostrados",
+      "Split cronológico treino/val/teste (70/10/20)"
+    ]
+  },
+  "downstream": {
+    "entrega": "Modelo servido via API REST (FastAPI): GET /recommend?user_id=X&top_k=10 retorna lista de itens ranqueados; carregado do MLflow Registry (Production).",
+    "monitoramento": {
+      "descricao": "Monitoramento contínuo de qualidade de ranking e distribuição de dados",
+      "objetivo": "Detectar degradação e acionar re-treinamento",
+      "escopo": [
+        "Performance (NDCG@K, Recall@K)",
+        "Data drift (catálogo / comportamento)",
+        "Concept drift (mudança de preferências)"
+      ]
+    },
+    "retraining": "Re-treinamento reprodutível via `dvc repro` (semente 42); periódico ou disparado por degradação de métricas"
+  },
+  "team": [
+    "João — Data Scientist",
+    "Jayne — Data Scientist",
+    "Bianca Emi — Data Engineer",
+    "Gabriela — Data Analyst"
+  ],
+  "premissas": [
+    "Comportamento passado (views/carrinho/compra) é preditivo de interesse futuro",
+    "Feedback implícito (addtocart/transaction) representa relevância",
+    "Metadados de categoria estão disponíveis para apoiar cold-start"
+  ],
+  "perguntas_negocio": [
+    "Quais produtos recomendar para cada usuário?",
+    "Como atender usuários sem histórico (cold-start)?",
+    "O modelo supera um baseline de popularidade?",
+    "Quantos itens recomendar por requisição (Top-K)?"
+  ]
+}

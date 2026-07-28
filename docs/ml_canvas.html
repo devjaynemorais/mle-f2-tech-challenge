@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ML Canvas — RetailRocket Recommender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #1c1c2e;
+      background-image: radial-gradient(ellipse at 20% 20%, #2d2b55 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 80%, #1a2a4a 0%, transparent 60%);
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    /* ── ERROR ── */
+    #error-banner {
+      display: none;
+      background: #fff1f2;
+      border-left: 4px solid #f43f5e;
+      border-radius: 12px;
+      padding: 24px 28px;
+      max-width: 580px;
+      margin: 60px auto;
+      font-size: 0.88rem;
+      line-height: 1.8;
+      color: #333;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    #error-banner strong { color: #f43f5e; font-size: 1rem; }
+    #error-banner code {
+      background: #f1f5f9;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      color: #0f172a;
+    }
+
+    /* ── WRAPPER ── */
+    .canvas-wrapper {
+      max-width: 1380px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    /* ── CANVAS HEADER ── */
+    .canvas-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2744 100%);
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 3px solid #3b82f6;
+    }
+    .header-brand { flex-shrink: 0; }
+    .header-brand .title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    .header-brand .subtitle {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 2px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .header-divider {
+      width: 1px;
+      height: 40px;
+      background: rgba(255,255,255,0.15);
+      flex-shrink: 0;
+    }
+    .meta-fields {
+      display: flex;
+      gap: 0;
+      flex: 1;
+    }
+    .meta-field {
+      flex: 1;
+      border-right: 1px solid rgba(255,255,255,0.1);
+      padding: 4px 14px;
+    }
+    .meta-field:last-child { border-right: none; }
+    .meta-field label {
+      display: block;
+      font-size: 0.63rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 3px;
+    }
+    .meta-field input {
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+    }
+    .meta-field input::placeholder { color: #475569; }
+
+    /* ── MAIN GRID ── */
+    .canvas-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 0.85fr 0.85fr 0.85fr;
+      grid-template-rows: auto auto auto;
+      background: #e8eaed;
+      gap: 2px;
+    }
+
+    /* ── SECTION ── */
+    .section {
+      background: #f8f9fa;
+      display: flex;
+      flex-direction: column;
+      min-height: 200px;
+    }
+    .section-header {
+      background: #1e293b;
+      color: #f8fafc;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      padding: 8px 14px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .section-header .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .section-body {
+      padding: 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: #f0f2f5;
+    }
+    .section-body.row {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-content: flex-start;
+    }
+
+    /* ── STICKY NOTE ── */
+    .note {
+      background: #fef9c3;
+      padding: 9px 11px;
+      font-size: 0.74rem;
+      color: #1c1917;
+      line-height: 1.5;
+      box-shadow: 2px 3px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+      border-radius: 2px;
+      position: relative;
+      flex-shrink: 0;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+    }
+    .note::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: rgba(0,0,0,0.08);
+      border-radius: 2px 2px 0 0;
+    }
+    .note.blue   { background: #dbeafe; }
+    .note.blue::before   { background: #3b82f6; }
+    .note.pink   { background: #fce7f3; }
+    .note.pink::before   { background: #ec4899; }
+    .note.green  { background: #dcfce7; }
+    .note.green::before  { background: #22c55e; }
+    .note.purple { background: #ede9fe; }
+    .note.purple::before { background: #8b5cf6; }
+    .note.orange { background: #ffedd5; }
+    .note.orange::before { background: #f97316; }
+    .note.white  { background: #fff; }
+    .note.white::before  { background: #cbd5e1; }
+
+    .note strong {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .note ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 2px;
+    }
+    .note ul li {
+      padding-left: 10px;
+      position: relative;
+      margin-bottom: 2px;
+    }
+    .note ul li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    /* ── GRID POSITIONS ── */
+    .area-bd         { grid-column: 1;     grid-row: 1 / 3; }
+    .area-aa         { grid-column: 2;     grid-row: 1 / 3; }
+    .area-data       { grid-column: 3;     grid-row: 1; }
+    .area-infra      { grid-column: 4;     grid-row: 1; }
+    .area-goal       { grid-column: 5;     grid-row: 1; }
+    .area-team       { grid-column: 3;     grid-row: 2; min-height: 160px; }
+    .area-model      { grid-column: 4;     grid-row: 2; }
+    .area-interv     { grid-column: 5;     grid-row: 2; }
+    .area-upstream   { grid-column: 1 / 3; grid-row: 3; min-height: 150px; }
+    .area-empty      { grid-column: 3;     grid-row: 3; background: #e2e5ea; }
+    .area-downstream { grid-column: 3 / 6; grid-row: 3; min-height: 150px; }
+
+    /* ── TEAM AREA ── */
+    .team-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px;
+      background: #f0f2f5;
+      flex: 1;
+    }
+    .avatar {
+      background: #fef9c3;
+      box-shadow: 2px 3px 8px rgba(0,0,0,0.12);
+      padding: 10px 14px;
+      border-radius: 2px;
+      text-align: center;
+      min-width: 90px;
+      position: relative;
+    }
+    .avatar::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: #3b82f6;
+      border-radius: 2px 2px 0 0;
+    }
+    .avatar .av-name { font-weight: 700; font-size: 0.78rem; color: #0f172a; }
+    .avatar .av-role { color: #64748b; font-size: 0.68rem; margin-top: 3px; }
+
+    /* ── CANVAS FOOTER ── */
+    .canvas-footer {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-top: 2px solid #3b82f6;
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .footer-left {
+      font-size: 0.7rem;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+    .footer-left span { color: #94a3b8; font-weight: 600; }
+    .footer-tags { display: flex; gap: 6px; }
+    .footer-tag {
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .footer-right {
+      font-size: 0.7rem;
+      color: #475569;
+      text-align: right;
+    }
+    .footer-right strong { color: #94a3b8; display: block; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<div id="error-banner">
+  <strong>Como visualizar este canvas</strong><br><br>
+  O browser bloqueia leitura de arquivos locais. Abra um terminal em <code>docs/</code> e rode:<br><br>
+  <code>python -m http.server 8080</code><br><br>
+  Depois acesse: <code>http://localhost:8080/docs/ml_canvas.html</code><br><br>
+  Para editar o conteúdo, modifique <code>ml_canvas.json</code> e recarregue a página.
+</div>
+
+<div class="canvas-wrapper" id="canvas-wrapper" style="display:none">
+
+  <!-- HEADER -->
+  <div class="canvas-header">
+    <div class="header-brand">
+      <div class="title">The ML/AI Model Canvas</div>
+      <div class="subtitle">Machine Learning · Sistema de Recomendação</div>
+    </div>
+    <div class="header-divider"></div>
+    <div class="meta-fields">
+      <div class="meta-field" style="flex:2">
+        <label>Designed For</label>
+        <input id="m-for" value="E-commerce (RetailRocket)" title="E-commerce (RetailRocket)" />
+      </div>
+      <div class="meta-field" style="flex:2">
+        <label>Designed by</label>
+        <input id="m-by" value="" />
+      </div>
+      <div class="meta-field">
+        <label>Date</label>
+        <input id="m-date" value="" />
+      </div>
+      <div class="meta-field">
+        <label>Version</label>
+        <input id="m-version" value="2.0" />
+      </div>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="canvas-grid" id="canvas-grid"></div>
+
+  <!-- FOOTER -->
+  <div class="canvas-footer">
+    <div class="footer-left">Tech Challenge · Fase 2 · MLE PÓS<br><span id="footer-team-str"></span></div>
+    <div class="footer-tags" id="footer-tags"></div>
+    <div class="footer-right"><strong>ML Canvas</strong>Recommendation System Pipeline</div>
+  </div>
+
+</div>
+
+<script>
+  const DOTS = {
+    blue: '#3b82f6', green: '#22c55e', pink: '#ec4899',
+    purple: '#8b5cf6', orange: '#f97316', yellow: '#eab308', gray: '#64748b'
+  };
+
+  function dot(color) {
+    return `<span class="dot" style="background:${DOTS[color] || DOTS.gray}"></span>`;
+  }
+  function header(label, dotColor) {
+    return `<div class="section-header">${dot(dotColor)}<span>${label}</span></div>`;
+  }
+  function note(content, color = '') {
+    return `<div class="note ${color}">${content}</div>`;
+  }
+  function noteT(title, content, color = '') {
+    return `<div class="note ${color}"><strong>${title}</strong>${content}</div>`;
+  }
+  function ul(items) {
+    return '<ul>' + items.map(i => `<li>${i}</li>`).join('') + '</ul>';
+  }
+
+  function render(D) {
+    document.getElementById('canvas-wrapper').style.display = 'block';
+
+    const byNames = D.team.map(t => t.split('—')[0].trim()).join(', ');
+    const mBy = document.getElementById('m-by');
+    mBy.value = byNames;
+    mBy.title = byNames;
+    document.getElementById('m-date').value = new Date().toLocaleDateString('pt-BR');
+
+    const g = document.getElementById('canvas-grid');
+    const bd  = D.business_drivers;
+    const aa  = D.acceptable_accuracy_tradeoffs;
+    const kpi = bd.metricas;
+    const gl  = D.goal;
+    const mt  = D.model_type;
+    const iv  = D.intervention;
+    const up  = D.upstream;
+    const ds  = D.downstream;
+    const inf = D.infrastructure;
+    const dt  = D.data;
+
+    // ── BUSINESS DRIVERS ──
+    g.innerHTML += `
+    <div class="section area-bd">
+      ${header('Business Drivers', 'blue')}
+      <div class="section-body">
+        ${noteT('Problema de Negócio', `<p>${bd.problema}</p>`, 'blue')}
+        ${noteT('Stakeholders', ul(bd.stakeholders))}
+        ${noteT('Métricas de Negócio', `
+          <ul>
+            <li><b>KPI:</b> ${kpi.kpi_principal}</li>
+            <li><b>Financeiro:</b> ${kpi.impacto_financeiro}</li>
+            <li><b>Eficiência:</b> ${kpi.eficiencia}</li>
+            <li><b>ROI:</b> ${kpi.roi}</li>
+          </ul>`, 'orange')}
+        ${noteT('Perguntas de Negócio', ul(D.perguntas_negocio), 'green')}
+      </div>
+    </div>`;
+
+    // ── ACCEPTABLE ACCURACY & TRADE-OFFS ──
+    g.innerHTML += `
+    <div class="section area-aa">
+      ${header('Acceptable Accuracy & Trade-offs', 'pink')}
+      <div class="section-body">
+        ${noteT('Decisão', `<p>${aa.decisao}</p>`, 'purple')}
+        ${noteT('Falso Negativo — Alto Risco', `<p>${aa.falsos_negativos}</p>`, 'pink')}
+        ${noteT('Falso Positivo — Risco Médio', `<p>${aa.falsos_positivos}</p>`, 'orange')}
+        ${noteT('Métricas Técnicas', ul(aa.metricas_tecnicas), 'blue')}
+        ${noteT('Premissas', ul(D.premissas), 'green')}
+      </div>
+    </div>`;
+
+    // ── DATA TYPE / SPEED / SIZE ──
+    g.innerHTML += `
+    <div class="section area-data">
+      ${header('Data Type / Speed / Size', 'green')}
+      <div class="section-body">
+        ${noteT('Tipo', `<p>${dt.tipo}</p>`)}
+        ${noteT('Volume', `<p>${dt.tamanho}</p>`, 'green')}
+        ${noteT('Velocidade', `<p>${dt.velocidade}</p>`, 'blue')}
+      </div>
+    </div>`;
+
+    // ── INFRASTRUCTURE ──
+    g.innerHTML += `
+    <div class="section area-infra">
+      ${header('Infrastructure', 'gray')}
+      <div class="section-body">
+        ${note(`<p>${inf.desenvolvimento}</p>`)}
+        ${note(`<p>${inf.rastreamento}</p>`, 'blue')}
+        ${note(`<p>${inf.producao}</p>`, 'purple')}
+      </div>
+    </div>`;
+
+    // ── GOAL ──
+    g.innerHTML += `
+    <div class="section area-goal">
+      ${header('Goal', 'purple')}
+      <div class="section-body">
+        ${noteT('Data Science', `<p>${gl.objetivo_ciencia_dados}</p>`, 'blue')}
+        ${noteT('Negócio', ul(gl.objetivo_negocio), 'green')}
+        ${noteT('Técnico', `<p>${gl.objetivo_tecnico}</p>`)}
+        ${noteT('Avançado', `<p>${gl.objetivo_cd_avancado}</p>`, 'purple')}
+      </div>
+    </div>`;
+
+    // ── CURRENT TEAM ──
+    g.innerHTML += `
+    <div class="section area-team">
+      ${header('Current Team', 'yellow')}
+      <div class="team-list" id="team-list"></div>
+    </div>`;
+
+    // ── MODEL TYPE ──
+    g.innerHTML += `
+    <div class="section area-model">
+      ${header('Model Type', 'blue')}
+      <div class="section-body">
+        ${noteT('Modelo Principal', `<p>${mt.principal}</p>`, 'blue')}
+        ${noteT('Baselines', ul(mt.baselines))}
+      </div>
+    </div>`;
+
+    // ── INTERVENTION ──
+    g.innerHTML += `
+    <div class="section area-interv">
+      ${header('Intervention', 'orange')}
+      <div class="section-body">
+        ${noteT('Ação', `<p>${iv.acao}</p>`)}
+        ${noteT('Estratégias', ul(iv.estrategias), 'green')}
+        ${noteT('Critério de Ativação', `<p>${iv.criterio_ativacao}</p>`, 'pink')}
+      </div>
+    </div>`;
+
+    // ── UPSTREAM ──
+    g.innerHTML += `
+    <div class="section area-upstream">
+      ${header('Upstream', 'teal')}
+      <div class="section-body row">
+        ${noteT('Fonte de Dados', `<p>${up.fonte}</p>`, 'blue')}
+        ${noteT('Pré-processamento', ul(up.processamento))}
+      </div>
+    </div>`;
+
+    // ── EMPTY ──
+    g.innerHTML += `<div class="area-empty"></div>`;
+
+    // ── DOWNSTREAM ──
+    g.innerHTML += `
+    <div class="section area-downstream">
+      ${header('Downstream', 'purple')}
+      <div class="section-body row">
+        ${noteT('Entrega via API', `<p>${ds.entrega}</p>`, 'blue')}
+        ${noteT('Monitoramento', `<p>${ds.monitoramento.descricao}</p>${ul(ds.monitoramento.escopo)}`, 'green')}
+        ${noteT('Re-treinamento', `<p>${ds.retraining}</p>`, 'pink')}
+      </div>
+    </div>`;
+
+    // Team avatars
+    const tl = document.getElementById('team-list');
+    const avatarColors = ['#3b82f6', '#22c55e', '#ec4899', '#8b5cf6'];
+    D.team.forEach((member, i) => {
+      const [name, role] = member.split('—').map(s => s.trim());
+      const div = document.createElement('div');
+      div.className = 'avatar';
+      div.style.setProperty('--av-color', avatarColors[i % avatarColors.length]);
+      div.querySelector?.('::before');
+      div.innerHTML = `<div class="av-name">${name}</div><div class="av-role">${role || ''}</div>`;
+      div.style.cssText += `position:relative`;
+      // Override the ::before color via inline style trick
+      const style = document.createElement('style');
+      style.textContent = `.avatar:nth-child(${i+1})::before { background: ${avatarColors[i % avatarColors.length]} !important; }`;
+      document.head.appendChild(style);
+      tl.appendChild(div);
+    });
+
+    // Footer
+    const techStack = [
+      { name: 'PyTorch',     color: '#ef4444' },
+      { name: 'Scikit-Learn',color: '#f59e0b' },
+      { name: 'MLflow',      color: '#3b82f6' },
+      { name: 'FastAPI',     color: '#22c55e' },
+    ];
+    document.getElementById('footer-tags').innerHTML = techStack
+      .map(t => `<span class="footer-tag" style="background:${t.color}20;color:${t.color};border:1px solid ${t.color}40">${t.name}</span>`)
+      .join('');
+    document.getElementById('footer-team-str').textContent =
+      D.team.map(t => t.split('—')[0].trim()).join(' · ');
+  }
+
+  fetch('ml_canvas.json')
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(render)
+    .catch(() => {
+      document.getElementById('error-banner').style.display = 'block';
+    });
+</script>
+</body>
+</html>
