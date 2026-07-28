@@ -552,7 +552,7 @@
         para você apresentar e defender.</p>
         <div class="thesis">
           <span><b>0,379</b> vs 0,303 — NDCG@10 do modelo vs. popularidade (forte, warm)</span>
-          <span><b>+63%</b> vs. o baseline de popularidade sob relevância ampla</span>
+          <span><b>+43%</b> vs. o baseline de popularidade sob relevância ampla</span>
           <span><b>200</b> testes (100% cobertura) · <b>6</b> estágios DVC · <b>2</b> specs</span>
         </div>
       </div>
@@ -647,7 +647,7 @@
       <div class="grid-2">
         <div class="card">
           <h4>Por que não é trivial</h4>
-          <p>O catálogo é grande, o histórico por usuário é curto (mediana de ~2 interações) e
+          <p>O catálogo é grande, o histórico por usuário é curto (mediana de 1 interação) e
           a maioria dos eventos é navegação sem intenção de compra. Um recomendador ingênuo
           aprende a prever popularidade, não preferência — e um bom recomendador precisa
           superar esse baseline, não apenas "funcionar".</p>
@@ -667,7 +667,7 @@
           <thead><tr><th>Critério</th><th class="num">Peso</th><th>O que é olhado</th><th>O que foi feito no projeto</th></tr></thead>
           <tbody>
             <tr>
-              <td>Clean code e estrutura</td><td class="num">20%</td>
+              <td>Clean code e estrutura</td><td class="num">15%</td>
               <td>SOLID, naming, type hints, design patterns, linting</td>
               <td><span class="pill win">feito</span> Factory (<code>ModelFactory</code>) e Strategy
               (<code>PreprocessStrategy</code>) em <code>src/models/factory.py</code> e
@@ -693,7 +693,7 @@
             </tr>
             <tr>
               <td>DVC + Pipeline</td><td class="num">15%</td>
-              <td>Dataset versionado, pipeline ≥ 4 estágios, <code>dvc repro</code> funcional</td>
+              <td>Dataset versionado, pipeline ≥ 3 estágios, <code>dvc repro</code> funcional</td>
               <td><span class="pill win">feito</span> <code>dvc.yaml</code> com 6 estágios
               (<code>preprocess → content → feature_eng → train → evaluate → promote</code>),
               <code>dvc.lock</code> versionado.</td>
@@ -739,7 +739,7 @@
       <div class="eyebrow">02 — Dados</div>
       <h2>RetailRocket E-commerce Dataset</h2>
       <p class="lede">Logs reais e anonimizados de uma loja virtual: eventos de navegação,
-      carrinho e compra ao longo de 4,5 meses (mai–out 2015), publicados no Kaggle.</p>
+      carrinho e compra ao longo de 4,5 meses (mai–set 2015), publicados no Kaggle.</p>
 
       <div class="stat-row">
         <div class="stat"><span class="n mono">2,76M</span><span class="l">eventos brutos</span></div>
@@ -773,7 +773,7 @@
         </div>
         <div class="card">
           <h4>Por que isso molda todo o design</h4>
-          <p>Com mediana de ~2 interações por usuário (base bruta) e catálogo de ~235K itens,
+          <p>Com mediana de 1 interação por usuário (base bruta) e catálogo de ~235K itens,
           uma feature agregada por usuário (ex.: "ticket médio", "categoria favorita") vira
           quase um sinônimo do próprio evento — com 1–2 pontos, a "média" é só o valor
           isolado, sem padrão nenhum pra generalizar. Isso empurra o design pra: (a)
@@ -784,25 +784,28 @@
 
       <h3>Por que filtrar usuários com menos de 5 interações</h3>
       <p>A distribuição de interações por usuário segue <b>power-law</b> (poucos usuários
-      concentram a maioria dos eventos; mediana bruta ≈ 2 interações/usuário) — é o único
-      filtro de linha aplicado no pipeline (<code>RetailRocketPreprocessor._filter_users()</code>,
-      estágio <code>preprocess</code>), antes de qualquer split ou feature. Nenhum evento é
-      descartado por tipo: <code>view</code>, <code>addtocart</code> e <code>transaction</code>
-      passam todos — o que muda é o papel de cada um (seção 04).</p>
+      concentram a maioria dos eventos; mediana bruta = 1 interação/usuário, média ≈ 2) — é o
+      único filtro de linha aplicado no pipeline
+      (<code>RetailRocketPreprocessor._filter_users()</code>, estágio <code>preprocess</code>),
+      antes de qualquer split ou feature. Nenhum evento é descartado por tipo:
+      <code>view</code>, <code>addtocart</code> e <code>transaction</code> passam todos — o
+      que muda é o papel de cada um (seção 04).</p>
       <div class="tbl-wrap">
         <table>
           <thead><tr><th>Corte</th><th class="num">% de usuários</th><th>Efeito</th></tr></thead>
           <tbody>
-            <tr><td>≥5 interações (mantidos)</td><td class="num win">~20–25%</td><td>preservam <b>~70%+</b> dos eventos brutos</td></tr>
-            <tr><td>&lt;5 interações (descartados)</td><td class="num loss">~75–80%</td><td>visita única/passagem — sem histórico suficiente pra features causais informativas</td></tr>
+            <tr><td>≥5 interações (mantidos)</td><td class="num win">~5,8%</td><td>preservam <b>~34%</b> dos eventos brutos</td></tr>
+            <tr><td>&lt;5 interações (descartados)</td><td class="num loss">~94,2%</td><td>mediana de 1 evento — sem histórico suficiente pra features causais informativas</td></tr>
           </tbody>
         </table>
       </div>
-      <p>É uma troca deliberada: perder ~75% dos <i>usuários</i> custa pouco volume de
-      <i>eventos</i> de treino, porque quem tem menos de 5 interações raramente gera sinal de
-      preferência aprendível (nem <code>frequency</code> nem <code>engagement_score</code>
-      diferenciam nada com 1–2 pontos). Threshold documentado em
-      <code>docs/eda.md#decisões-para-o-pré-processamento</code>.</p>
+      <p>É uma troca deliberada e cara em volume: perder ~94% dos <i>usuários</i> custa ~66% dos
+      <i>eventos</i> brutos. O corte se justifica porque quem tem menos de 5 interações raramente
+      gera sinal de preferência aprendível (nem <code>frequency</code> nem
+      <code>engagement_score</code> diferenciam nada com 1 ponto) — a base filtrada troca volume
+      bruto por densidade de sinal por usuário. Threshold documentado em
+      <code>docs/eda.md#decisões-para-o-pré-processamento</code> e centralizado em
+      <code>params.yaml</code> (<code>preprocess.min_interactions</code>).</p>
 
       <h3>Split cronológico (sem embaralhar)</h3>
       <div class="tbl-wrap">
@@ -912,7 +915,7 @@
           <tbody>
             <tr><td class="mono">user_idx / item_idx</td><td>Esparsidade &gt;99,99% inviabiliza one-hot — precisam ser <b>índice de embedding</b>, não valor numérico cru (era o bug central do diagnóstico original, seção 03)</td></tr>
             <tr><td class="mono">hour / day_of_week</td><td>Pico de tráfego concentrado 10h–16h e padrão semanal visível na análise temporal</td></tr>
-            <tr><td class="mono">frequency</td><td>Distribuição power-law: usuários ≥5 interações concentram ~70%+ dos eventos — vale diferenciar "quão ativo" dentro desse grupo</td></tr>
+            <tr><td class="mono">frequency</td><td>Distribuição power-law: mesmo dentro do grupo ≥5 interações (só ~34% dos eventos brutos), a atividade varia muito de usuário pra usuário — vale diferenciar "quão ativo" dentro desse grupo</td></tr>
             <tr><td class="mono">engagement_score</td><td>Soma dos pesos por evento — captura <i>intensidade</i>, não só contagem (dois usuários com 5 eventos podem ter intenção bem diferente)</td></tr>
             <tr><td class="mono">recency_days</td><td>Sinal de engajamento recente vs. usuário "esfriando"</td></tr>
             <tr><td class="mono">view_count</td><td>Árvore de decisão exploratória apontou <code>view</code> como o principal driver de popularidade de item</td></tr>

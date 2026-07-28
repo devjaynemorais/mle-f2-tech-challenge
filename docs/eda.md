@@ -53,15 +53,15 @@ Executado e outputs salvos. Para re-executar, abrir no VS Code com kernel `.venv
 ## Principais Achados
 
 ### Dataset
-- **~2,8M eventos** em 4,5 meses (~Mai–Out 2015)
+- **~2,8M eventos** em 4,5 meses (~Mai–Set 2015)
 - **~1,4M usuários** únicos · **~235K itens** únicos
 - Esparsidade da matriz usuário × item: **> 99,99%**
 - Pico de tráfego entre **10h–16h** (fuso UTC+3, Moscou)
 
 ### Comportamento
 - Distribuição de interações segue **power-law** em usuários e itens
-- Mediana de interações por usuário: **~2** (maioria de passagem)
-- Usuários com ≥ 5 interações: ~20–25% dos usuários, ~70%+ dos eventos
+- Média de interações por usuário: **~2**; **mediana: 1** (maioria de passagem única)
+- Usuários com ≥ 5 interações: **~5,8%** dos usuários, **~34%** dos eventos
 
 ### Funil de Conversão
 | Transição | Taxa |
@@ -81,7 +81,7 @@ Executado e outputs salvos. Para re-executar, abrir no VS Code com kernel `.venv
 
 | Decisão | Justificativa |
 |---------|--------------|
-| Filtrar usuários com < 5 interações | Elimina ruído sem perder volume significativo de eventos |
+| Filtrar usuários com < 5 interações | Descarta ~94% dos usuários (mediana de 1 interação, sem sinal de preferência aprendível) — custa ~66% dos eventos, mas mantém os ~34% com maior densidade de sinal por usuário |
 | Encoding `visitorid` → `user_idx` (int sequencial) | Necessário para embeddings no modelo |
 | Encoding `itemid` → `item_idx` (int sequencial) | Necessário para embeddings no modelo |
 | Split cronológico (últimas interações = teste) | Evita data leakage em séries temporais |
