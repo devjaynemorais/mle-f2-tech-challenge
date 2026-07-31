@@ -75,3 +75,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
 EXPOSE 8000
 
 CMD ["uvicorn", "src.serving.api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# Stage 5: api-prod — FastAPI serving endpoint with model and data
+FROM api AS api-prod
+
+COPY models/ models/
+COPY data/processed/ data/processed/
