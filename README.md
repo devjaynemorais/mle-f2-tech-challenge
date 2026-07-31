@@ -6,6 +6,30 @@ Sistema de recomendação de produtos para e-commerce — FIAP MLE Fase 2.
 
 Uma empresa de e-commerce precisa de um sistema de recomendação de produtos baseado no comportamento de navegação dos usuários. O modelo central é uma rede neural (MLP ou embedding-based) treinada com PyTorch, com pipeline completo containerizado em Docker, dados versionados com DVC e experimentos rastreados no MLflow.
 
+## Deploy em Nuvem
+
+A aplicação foi publicada na AWSLab usando:
+
+- Amazon ECR para armazenamento da imagem Docker
+- Amazon ECS/Fargate para execução do container
+- ECS Express Mode para criação do serviço público
+
+> Deploy realizado em AWS Academy Learner Lab. A URL pública fica disponível enquanto o lab estiver ativo; ao encerrar o lab, o serviço pode ficar indisponível.
+
+URL pública da demo:
+
+```text
+https://re-4af89f72c8c1492785dc3509cec3a417.ecs.us-east-1.on.aws/demo
+```
+
+Endpoint de health check:
+
+```text
+https://re-4af89f72c8c1492785dc3509cec3a417.ecs.us-east-1.on.aws/health
+```
+
+OBS: Modo Escuro do navegador pode atrapalhar a visualização, tente o modo claro.
+
 ## Stack
 
 | Camada | Ferramenta |

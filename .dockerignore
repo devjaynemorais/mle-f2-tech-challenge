@@ -21,3 +21,13 @@ tests/
 scripts/
 .env
 *.md
+
+
+# Necessarios para a imagem api-prod no ECS
+!data/processed/
+!data/processed/**
+!models/artifacts/
+!models/artifacts/**
+!models/promoted_model.json
+!models/production/
+!models/production/**
